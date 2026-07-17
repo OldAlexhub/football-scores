@@ -1,11 +1,22 @@
 package com.oldalexhub.footballscores
 
+import android.os.Bundle
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 class MainActivity : ReactActivity() {
+
+  /**
+   * Shows Theme.App.SplashScreen (set as this Activity's manifest theme) instantly on
+   * cold start, then swaps to the real AppTheme before the window is drawn with content
+   * — the standard windowBackground splash-screen pattern for bare React Native.
+   */
+  override fun onCreate(savedInstanceState: Bundle?) {
+    setTheme(R.style.AppTheme)
+    super.onCreate(savedInstanceState)
+  }
 
   /**
    * Returns the name of the main component registered from JavaScript. This is used to schedule
