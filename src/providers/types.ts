@@ -1,6 +1,8 @@
 import type {
   Competition,
   Match,
+  MatchAnalysis,
+  MatchPrediction,
   ProviderCapabilities,
   ProviderId,
   StandingRow,
@@ -65,4 +67,6 @@ export interface FootballDataProvider {
   getTeam(providerTeamId: string): Promise<Team | null>;
   getHeadToHead(homeTeamProviderId: string, awayTeamProviderId: string): Promise<HeadToHeadResult>;
   getForm(teamProviderId: string): Promise<FormResult>;
+  getPrediction?(providerMatchId: string): Promise<MatchPrediction | null>;
+  getMatchAnalysis?(providerMatchId: string): Promise<MatchAnalysis | null>;
 }

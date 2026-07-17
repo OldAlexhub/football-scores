@@ -1,19 +1,44 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../theme/ThemeProvider';
 import { usePreferences } from '../state/PreferencesContext';
 import { formatKickoffTime } from '../utils/dates';
 import { flagForCountry } from '../utils/countryFlags';
 import type { Match } from '../types/domain';
-import { Badge } from './ui';
+import { AppIcon, type AppIconName } from './AppIcon';
+import { TeamCrest } from './TeamCrest';
 
-function TeamCrest({ initials }: { initials: string }) {
+function Action({
+  icon,
+  label,
+  active,
+  onPress,
+}: {
+  icon: AppIconName;
+  label: string;
+  active?: boolean;
+  onPress: () => void;
+}) {
   const theme = useTheme();
+  const handlePress = (event: GestureResponderEvent) => {
+    event.stopPropagation();
+    onPress();
+  };
   return (
-    <View style={[styles.crest, { backgroundColor: theme.colors.surfaceAlt }]}>
-      <Text style={[styles.crestText, { color: theme.colors.textSecondary }]}>{initials.slice(0, 3)}</Text>
-    </View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: !!active }}
+      hitSlop={8}
+      onPress={handlePress}
+      style={({ pressed }) => [
+        styles.actionButton,
+        { backgroundColor: active ? theme.colors.accentSoft : theme.colors.surfaceAlt, opacity: pressed ? 0.65 : 1 },
+      ]}
+    >
+      <AppIcon name={icon} size={17} color={active ? theme.colors.accent : theme.colors.textMuted} />
+    </Pressable>
   );
 }
 
@@ -43,6 +68,7 @@ export function MatchCard({
   const theme = useTheme();
   const { t } = useTranslation();
   const { preferences } = usePreferences();
+  const isLive = match.status === 'live' || match.status === 'half_time';
 
   const timeLabel = formatKickoffTime(
     match.kickoffUtc,
@@ -52,30 +78,45 @@ export function MatchCard({
     t('common.timeNotConfirmed'),
   );
 
-  const showScore = !spoilerShielded && (match.status === 'finished' || match.status === 'live' || match.status === 'half_time');
+  const showScore = !spoilerShielded && (match.status === 'finished' || isLive);
   const score = match.currentScore ?? match.fullTimeScore;
+  const statusColor = isLive
+    ? theme.colors.danger
+    : match.status === 'postponed' || match.status === 'cancelled'
+      ? theme.colors.warning
+      : theme.colors.textMuted;
 
   return (
     <Pressable
+      accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-        { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: pressed ? 0.85 : 1 },
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: isLive ? theme.colors.danger : theme.colors.border,
+          opacity: pressed ? 0.88 : 1,
+        },
       ]}
     >
       <View style={styles.headerRow}>
-        <Text style={[styles.competition, { color: theme.colors.textMuted }]} numberOfLines={1}>
-          {flagForCountry(match.country)} {match.competitionName}
+        <Text style={[styles.competition, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+          {flagForCountry(match.country)}  {match.competitionName}
         </Text>
-        <Badge
-          label={t(`matchStatus.${match.status}`)}
-          tone={match.status === 'live' || match.status === 'half_time' ? 'danger' : match.status === 'postponed' || match.status === 'cancelled' ? 'warning' : 'neutral'}
-        />
+        <View style={[styles.statusPill, { backgroundColor: isLive ? `${theme.colors.danger}18` : theme.colors.surfaceAlt }]}>
+          {isLive ? <View style={[styles.liveDot, { backgroundColor: theme.colors.danger }]} /> : null}
+          <Text style={[styles.statusText, { color: statusColor }]}>{t(`matchStatus.${match.status}`)}</Text>
+        </View>
       </View>
 
       <View style={styles.teamsRow}>
         <View style={styles.teamCol}>
-          <TeamCrest initials={match.homeTeamInitials} />
+          <TeamCrest
+            uri={match.homeTeamCrestUrl}
+            name={match.homeTeamName}
+            initials={match.homeTeamInitials}
+            size={48}
+          />
           <Text style={[styles.teamName, { color: theme.colors.textPrimary }]} numberOfLines={2}>
             {match.homeTeamName}
           </Text>
@@ -83,13 +124,22 @@ export function MatchCard({
 
         <View style={styles.centerCol}>
           {spoilerShielded ? (
-            <Text style={[styles.spoilerLabel, { color: theme.colors.warning }]}>{t('spoiler.resultHidden')}</Text>
+            <View style={[styles.centerBadge, { backgroundColor: theme.colors.accentSoft }]}>
+              <AppIcon name="shield" size={17} color={theme.colors.accent} />
+              <Text style={[styles.spoilerLabel, { color: theme.colors.accent }]}>{t('spoiler.resultHidden')}</Text>
+            </View>
           ) : showScore && score ? (
-            <Text style={[styles.scoreText, { color: theme.colors.textPrimary }]}>
-              {score.home ?? '–'} : {score.away ?? '–'}
-            </Text>
+            <>
+              <Text style={[styles.scoreText, { color: theme.colors.textPrimary }]}>
+                {score.home ?? '\u2013'}<Text style={{ color: theme.colors.textMuted }}> : </Text>{score.away ?? '\u2013'}
+              </Text>
+              {isLive ? <Text style={[styles.liveLabel, { color: theme.colors.danger }]}>{t('matchStatus.live')}</Text> : null}
+            </>
           ) : (
-            <Text style={[styles.timeText, { color: theme.colors.textPrimary }]}>{timeLabel}</Text>
+            <>
+              <Text style={[styles.timeText, { color: theme.colors.textPrimary }]}>{timeLabel}</Text>
+              <Text style={[styles.kickoffLabel, { color: theme.colors.textMuted }]}>{t('matchStatus.scheduled')}</Text>
+            </>
           )}
           {match.matchweek != null ? (
             <Text style={[styles.matchweek, { color: theme.colors.textMuted }]}>
@@ -99,60 +149,73 @@ export function MatchCard({
         </View>
 
         <View style={styles.teamCol}>
-          <TeamCrest initials={match.awayTeamInitials} />
+          <TeamCrest
+            uri={match.awayTeamCrestUrl}
+            name={match.awayTeamName}
+            initials={match.awayTeamInitials}
+            size={48}
+          />
           <Text style={[styles.teamName, { color: theme.colors.textPrimary }]} numberOfLines={2}>
             {match.awayTeamName}
           </Text>
         </View>
       </View>
 
-      <View style={styles.actionsRow}>
-        {onToggleFavorite ? (
-          <Pressable onPress={onToggleFavorite} hitSlop={8} style={styles.actionButton}>
-            <Text style={{ color: isFavorite ? theme.colors.accent : theme.colors.textMuted }}>
-              {isFavorite ? '★' : '☆'}
-            </Text>
-          </Pressable>
-        ) : null}
-        {onToggleReminder ? (
-          <Pressable onPress={onToggleReminder} hitSlop={8} style={styles.actionButton}>
-            <Text style={{ color: hasReminder ? theme.colors.accent : theme.colors.textMuted }}>🔔</Text>
-          </Pressable>
-        ) : null}
-        {onAddToMatchday ? (
-          <Pressable onPress={onAddToMatchday} hitSlop={8} style={styles.actionButton}>
-            <Text style={{ color: theme.colors.textMuted }}>🗓</Text>
-          </Pressable>
-        ) : null}
-        {onToggleSpoilerShield ? (
-          <Pressable onPress={onToggleSpoilerShield} hitSlop={8} style={styles.actionButton}>
-            <Text style={{ color: spoilerShielded ? theme.colors.accent : theme.colors.textMuted }}>🛡</Text>
-          </Pressable>
-        ) : null}
-        {hasPrediction ? (
-          <View style={styles.actionButton}>
-            <Text style={{ color: theme.colors.success }}>🎯</Text>
+      {(onToggleFavorite || onToggleReminder || onAddToMatchday || onToggleSpoilerShield || hasPrediction) ? (
+        <View style={[styles.actionsRow, { borderTopColor: theme.colors.border }]}>
+          <View style={styles.actionsLeft}>
+            {onToggleFavorite ? <Action icon="star" label="Favorite" active={isFavorite} onPress={onToggleFavorite} /> : null}
+            {onToggleReminder ? <Action icon="bell" label={t('matches.setReminder')} active={hasReminder} onPress={onToggleReminder} /> : null}
+            {onAddToMatchday ? <Action icon="bookmark" label={t('matches.addToMatchday')} onPress={onAddToMatchday} /> : null}
+            {onToggleSpoilerShield ? <Action icon="shield" label={t('spoiler.title')} active={spoilerShielded} onPress={onToggleSpoilerShield} /> : null}
           </View>
-        ) : null}
-      </View>
+          {hasPrediction ? (
+            <View style={[styles.predictionBadge, { backgroundColor: theme.colors.accentSoft }]}>
+              <AppIcon name="target" size={15} color={theme.colors.accent} />
+              <Text style={[styles.predictionText, { color: theme.colors.accent }]}>{t('predict.title')}</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, padding: 12, marginBottom: 10 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  competition: { fontSize: 11, flex: 1, marginRight: 8 },
-  teamsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  teamCol: { flex: 1, alignItems: 'center' },
-  centerCol: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  crest: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  crestText: { fontSize: 11, fontWeight: '700' },
-  teamName: { fontSize: 12, textAlign: 'center' },
-  scoreText: { fontSize: 18, fontWeight: '800' },
-  timeText: { fontSize: 14, fontWeight: '700' },
-  spoilerLabel: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
-  matchweek: { fontSize: 10, marginTop: 2 },
-  actionsRow: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 10 },
-  actionButton: { paddingHorizontal: 6, paddingVertical: 4 },
+  card: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  competition: { fontSize: 12, fontWeight: '700', flex: 1, marginRight: 10 },
+  statusPill: { minHeight: 26, borderRadius: 13, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  statusText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+  liveDot: { width: 6, height: 6, borderRadius: 3 },
+  teamsRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  teamCol: { flex: 1, alignItems: 'center', gap: 7 },
+  centerCol: { flex: 0.9, minHeight: 74, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  teamName: { fontSize: 12, lineHeight: 16, fontWeight: '700', textAlign: 'center', minHeight: 32 },
+  scoreText: { fontSize: 24, lineHeight: 30, fontWeight: '900', letterSpacing: -0.4 },
+  timeText: { fontSize: 17, fontWeight: '900' },
+  kickoffLabel: { fontSize: 9, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
+  liveLabel: { fontSize: 9, fontWeight: '900', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.7 },
+  centerBadge: { alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 10, gap: 3 },
+  spoilerLabel: { fontSize: 9, fontWeight: '800', textAlign: 'center' },
+  matchweek: { fontSize: 9, marginTop: 4 },
+  actionsRow: {
+    minHeight: 49,
+    marginTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  actionsLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  actionButton: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  predictionBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, height: 28, borderRadius: 14 },
+  predictionText: { fontSize: 10, fontWeight: '800' },
 });

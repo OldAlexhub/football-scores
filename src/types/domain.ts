@@ -115,6 +115,87 @@ export interface Match {
   attribution: string;
 }
 
+export interface MatchPrediction {
+  matchId: string;
+  predictedHomeGoals: number;
+  predictedAwayGoals: number;
+  homeWinPercent: number;
+  drawPercent: number;
+  awayWinPercent: number;
+  confidencePercent: number;
+  advice: string | null;
+  goalRange: string | null;
+  source: 'provider_model' | 'statistical_model';
+  sampleSize: number;
+  generatedAtUtc: string;
+}
+
+export type MatchEventType = 'goal' | 'card' | 'substitution' | 'var' | 'other';
+
+export interface MatchEvent {
+  id: string;
+  minute: number;
+  extraMinute: number | null;
+  teamId: string;
+  teamName: string;
+  playerName: string | null;
+  assistName: string | null;
+  type: MatchEventType;
+  detail: string;
+}
+
+export interface MatchStatistic {
+  key: string;
+  label: string;
+  homeValue: string | number | null;
+  awayValue: string | number | null;
+}
+
+export interface LineupPlayer {
+  id: string;
+  name: string;
+  number: number | null;
+  position: string | null;
+  grid: string | null;
+}
+
+export interface MatchLineup {
+  teamId: string;
+  teamName: string;
+  teamCrestUrl: string | null;
+  formation: string | null;
+  coachName: string | null;
+  starters: LineupPlayer[];
+  substitutes: LineupPlayer[];
+}
+
+export interface PlayerMatchPerformance {
+  playerId: string;
+  playerName: string;
+  playerPhotoUrl: string | null;
+  teamId: string;
+  teamName: string;
+  rating: number | null;
+  minutes: number | null;
+  goals: number;
+  assists: number;
+  shotsOnTarget: number;
+  keyPasses: number;
+  tackles: number;
+}
+
+export interface MatchAnalysis {
+  matchId: string;
+  providerId: ProviderId;
+  events: MatchEvent[];
+  statistics: MatchStatistic[];
+  lineups: MatchLineup[];
+  topPerformers: PlayerMatchPerformance[];
+  summary: string[];
+  hasExtendedData: boolean;
+  generatedAtUtc: string;
+}
+
 export interface StandingRow {
   competitionId: string;
   season: string | null;

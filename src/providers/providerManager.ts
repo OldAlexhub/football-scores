@@ -1,5 +1,5 @@
-import { writeCache } from '../storage/repositories/providerCacheRepo';
-import type { Competition, Match, ProviderId, StandingRow, Team } from '../types/domain';
+import { readCache, writeCache } from '../storage/repositories/providerCacheRepo';
+import type { Competition, Match, MatchAnalysis, MatchPrediction, ProviderId, StandingRow, Team } from '../types/domain';
 import { apiFootballProvider } from './apiFootballProvider';
 import { cacheKeys, CACHE_TTL_MS } from './cacheKeys';
 import { cachedProvider } from './cachedProvider';
@@ -9,8 +9,8 @@ import type { FootballDataProvider, FormResult, HeadToHeadResult, MatchesQuery }
 import { ProviderError } from './types';
 
 export const LIVE_PROVIDERS: FootballDataProvider[] = [
-  footballDataOrgProvider,
   apiFootballProvider,
+  footballDataOrgProvider,
   openFootballProvider,
 ];
 
@@ -191,4 +191,139 @@ export async function resolveMatchById(matchId: string): Promise<Match | null> {
     }
   }
   return null;
+}
+
+function providerIdPart(domainId: string): string {
+  const separator = domainId.indexOf(':');
+  return separator === -1 ? domainId : domainId.slice(separator + 1);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function formStrength(form: FormResult): { strength: number; sample: number } {
+  const results = form.lastFive;
+  if (results.length === 0) return { strength: 0.5, sample: 0 };
+  const points = results.reduce((total, result) => total + (result === 'W' ? 3 : result === 'D' ? 1 : 0), 0);
+  return { strength: points / (results.length * 3), sample: results.length };
+}
+
+function statisticalPrediction(
+  match: Match,
+  homeForm: FormResult,
+  awayForm: FormResult,
+  headToHead: HeadToHeadResult,
+): MatchPrediction | null {
+  const home = formStrength(homeForm);
+  const away = formStrength(awayForm);
+  const scoredMeetings = headToHead.matches.filter(item => item.fullTimeScore?.home != null && item.fullTimeScore.away != null);
+  const sampleSize = home.sample + away.sample + scoredMeetings.length;
+  if (sampleSize === 0) return null;
+
+  const h2hHomeAverage = scoredMeetings.length
+    ? scoredMeetings.reduce((total, item) => total + (item.fullTimeScore?.home ?? 0), 0) / scoredMeetings.length
+    : 1.35;
+  const h2hAwayAverage = scoredMeetings.length
+    ? scoredMeetings.reduce((total, item) => total + (item.fullTimeScore?.away ?? 0), 0) / scoredMeetings.length
+    : 1.1;
+  const strengthDifference = home.strength - away.strength;
+  const homeExpected = clamp(h2hHomeAverage + strengthDifference * 0.9 + 0.18, 0.2, 4.5);
+  const awayExpected = clamp(h2hAwayAverage - strengthDifference * 0.75, 0.2, 4.5);
+
+  const drawPercent = clamp(29 - Math.abs(strengthDifference) * 14, 17, 31);
+  const homeWinRaw = clamp(49 + strengthDifference * 42, 19, 75);
+  const awayWinRaw = clamp(100 - drawPercent - homeWinRaw, 12, 68);
+  const scale = (100 - drawPercent) / (homeWinRaw + awayWinRaw);
+  const homeWinPercent = Math.round(homeWinRaw * scale);
+  const awayWinPercent = 100 - Math.round(drawPercent) - homeWinPercent;
+
+  return {
+    matchId: match.id,
+    predictedHomeGoals: Math.round(homeExpected),
+    predictedAwayGoals: Math.round(awayExpected),
+    homeWinPercent,
+    drawPercent: Math.round(drawPercent),
+    awayWinPercent,
+    confidencePercent: Math.round(clamp(35 + sampleSize * 2.5, 35, 68)),
+    advice: null,
+    goalRange: homeExpected + awayExpected >= 2.7 ? 'Over 2.5' : 'Under 3.5',
+    source: 'statistical_model',
+    sampleSize,
+    generatedAtUtc: new Date().toISOString(),
+  };
+}
+
+export async function fetchMatchPrediction(match: Match): Promise<MatchPrediction | null> {
+  const cacheKey = cacheKeys.prediction(match.id);
+  const cached = await readCache<MatchPrediction>(cacheKey);
+  if (cached && !cached.isStale) return cached.payload;
+
+  const provider = LIVE_PROVIDERS.find(item => item.id === match.providerId);
+  if (!provider || !provider.isConfigured()) return cached?.payload ?? null;
+
+  if (provider.getPrediction) {
+    try {
+      const prediction = await provider.getPrediction(match.providerMatchId);
+      if (prediction) {
+        await writeCache(cacheKey, provider.id, prediction, CACHE_TTL_MS.prediction);
+        return prediction;
+      }
+    } catch {
+      if (cached) return cached.payload;
+    }
+  }
+
+  try {
+    const [homeForm, awayForm, headToHead] = await Promise.all([
+      provider.getForm(providerIdPart(match.homeTeamId)),
+      provider.getForm(providerIdPart(match.awayTeamId)),
+      provider.getHeadToHead(providerIdPart(match.homeTeamId), providerIdPart(match.awayTeamId)),
+    ]);
+    const prediction = statisticalPrediction(match, homeForm, awayForm, headToHead);
+    if (prediction) await writeCache(cacheKey, provider.id, prediction, CACHE_TTL_MS.prediction);
+    return prediction ?? cached?.payload ?? null;
+  } catch {
+    return cached?.payload ?? null;
+  }
+}
+
+function minimalFinishedAnalysis(match: Match): MatchAnalysis | null {
+  if (match.status !== 'finished') return null;
+  const score = match.fullTimeScore ?? match.currentScore;
+  const summary: string[] = [];
+  if (score?.home != null && score.away != null) {
+    if (score.home === score.away) summary.push(`${match.homeTeamName} and ${match.awayTeamName} drew ${score.home}-${score.away}.`);
+    else summary.push(`${score.home > score.away ? match.homeTeamName : match.awayTeamName} won ${score.home}-${score.away}.`);
+  }
+  return {
+    matchId: match.id,
+    providerId: match.providerId,
+    events: [],
+    statistics: [],
+    lineups: [],
+    topPerformers: [],
+    summary,
+    hasExtendedData: false,
+    generatedAtUtc: new Date().toISOString(),
+  };
+}
+
+export async function fetchMatchAnalysis(match: Match): Promise<MatchAnalysis | null> {
+  const cacheKey = cacheKeys.analysis(match.id);
+  const cached = await readCache<MatchAnalysis>(cacheKey);
+  if (cached && !cached.isStale) return cached.payload;
+  const provider = LIVE_PROVIDERS.find(item => item.id === match.providerId);
+  if (provider?.isConfigured() && provider.getMatchAnalysis) {
+    try {
+      const analysis = await provider.getMatchAnalysis(match.providerMatchId);
+      if (analysis) {
+        await writeCache(cacheKey, provider.id, analysis, CACHE_TTL_MS.matchAnalysis);
+        return analysis;
+      }
+    } catch {
+      if (cached) return cached.payload;
+    }
+  }
+  return cached?.payload ?? minimalFinishedAnalysis(match);
 }

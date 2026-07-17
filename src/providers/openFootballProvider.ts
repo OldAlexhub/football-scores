@@ -155,8 +155,14 @@ function initialsFromName(name: string): string {
 }
 
 function combineDateTime(date: string | undefined, time: string | undefined): { iso: string | null; unknown: boolean } {
-  if (!date || !time) {
+  if (!date) {
     return { iso: null, unknown: true };
+  }
+  if (!time) {
+    const dateOnly = new Date(`${date}T12:00:00Z`);
+    return Number.isNaN(dateOnly.getTime())
+      ? { iso: null, unknown: true }
+      : { iso: dateOnly.toISOString(), unknown: true };
   }
   // OpenFootball stores date/time without an explicit UTC offset. Treated as
   // unknown-confidence rather than silently assumed to be any timezone.
@@ -165,6 +171,20 @@ function combineDateTime(date: string | undefined, time: string | undefined): { 
     return { iso: null, unknown: true };
   }
   return { iso: parsed.toISOString(), unknown: false };
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await task(items[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
 }
 
 const KNOCKOUT_ROUND_PATTERN = /round of|quarter|semi|final|play-?off/i;
@@ -275,24 +295,23 @@ class OpenFootballProvider implements FootballDataProvider {
 
     const from = new Date(query.dateFromUtc).getTime();
     const to = new Date(query.dateToUtc).getTime();
-    const results: Match[] = [];
-
-    for (const code of codes) {
+    const grouped = await mapWithConcurrency(codes, 6, async code => {
       const loaded = await this.loadCompetitionFile(code);
-      if (!loaded) continue;
+      if (!loaded) return [] as Match[];
       const { entry, data, season } = loaded;
+      const competitionMatches: Match[] = [];
       for (const round of data.rounds ?? [{ name: null, matches: data.matches ?? [] }]) {
         for (const raw of round.matches ?? []) {
           const match = mapMatch(raw, entry, round.name ?? null, season);
-          if (match.kickoffUtc) {
-            const time = new Date(match.kickoffUtc).getTime();
-            if (time < from || time > to) continue;
-          }
-          results.push(match);
+          if (!match.kickoffUtc) continue;
+          const matchTime = new Date(match.kickoffUtc).getTime();
+          if (matchTime < from || matchTime > to) continue;
+          competitionMatches.push(match);
         }
       }
-    }
-    return results;
+      return competitionMatches;
+    });
+    return grouped.flat();
   }
 
   async getMatch(): Promise<Match | null> {

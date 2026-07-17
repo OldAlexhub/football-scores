@@ -1,12 +1,14 @@
 export interface ThemeColors {
   background: string;
   surface: string;
+  surfaceElevated: string;
   surfaceAlt: string;
   border: string;
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
   accent: string;
+  accentSoft: string;
   accentText: string;
   success: string;
   warning: string;
@@ -28,14 +30,16 @@ export const lightTheme: Theme = {
   colors: {
     background: '#F5F6F8',
     surface: '#FFFFFF',
-    surfaceAlt: '#EEF0F3',
-    border: '#E1E4E9',
-    textPrimary: '#111318',
-    textSecondary: '#4B5563',
-    textMuted: '#8A8F98',
-    accent: '#1E7A46',
+    surfaceElevated: '#FFFFFF',
+    surfaceAlt: '#F0F4F2',
+    border: '#DDE5E1',
+    textPrimary: '#102019',
+    textSecondary: '#4A5D54',
+    textMuted: '#7B8A83',
+    accent: '#0A8F52',
+    accentSoft: '#DDF5E9',
     accentText: '#FFFFFF',
-    success: '#1E7A46',
+    success: '#0A8F52',
     warning: '#B45309',
     danger: '#C0362C',
     overlay: 'rgba(17,19,24,0.5)',
@@ -48,13 +52,15 @@ export const darkTheme: Theme = {
   mode: 'dark',
   colors: {
     background: '#0E1013',
-    surface: '#181B20',
-    surfaceAlt: '#22262D',
-    border: '#2C3038',
-    textPrimary: '#F2F3F5',
-    textSecondary: '#B4B8C0',
-    textMuted: '#797F8A',
-    accent: '#34C77B',
+    surface: '#151C18',
+    surfaceElevated: '#1A241F',
+    surfaceAlt: '#202C26',
+    border: '#2C3A33',
+    textPrimary: '#F0F7F3',
+    textSecondary: '#B3C2BA',
+    textMuted: '#7F9187',
+    accent: '#35D07F',
+    accentSoft: '#173D29',
     accentText: '#08150F',
     success: '#34C77B',
     warning: '#E0A030',

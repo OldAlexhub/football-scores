@@ -5,13 +5,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { SafeAdContainer } from '../ads/SafeAdContainer';
 import { useTheme } from '../theme/ThemeProvider';
+import { AppIcon, type AppIconName } from './AppIcon';
 
-const TAB_ICONS: Record<string, string> = {
-  MatchesTab: '⚽',
-  MatchdayTab: '🗓',
-  PredictTab: '🎯',
-  InsightsTab: '📊',
-  MoreTab: '☰',
+const TAB_ICONS: Record<string, AppIconName> = {
+  MatchesTab: 'ball',
+  MatchdayTab: 'calendar',
+  PredictTab: 'target',
+  InsightsTab: 'chart',
+  MoreTab: 'menu',
 };
 
 const TAB_LABEL_KEYS: Record<string, string> = {
@@ -22,11 +23,6 @@ const TAB_LABEL_KEYS: Record<string, string> = {
   MoreTab: 'tabs.more',
 };
 
-/**
- * Custom bottom tab bar that hosts the one persistent banner slot directly
- * above the tab buttons, so the banner survives tab switches without
- * remounting and never overlaps the touch targets or the Android nav bar.
- */
 export function SafeBottomBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
@@ -39,7 +35,7 @@ export function SafeBottomBar({ state, descriptors, navigation }: BottomTabBarPr
         style={[
           styles.row,
           {
-            paddingBottom: Math.max(insets.bottom, 8),
+            paddingBottom: Math.max(insets.bottom, 7),
             borderTopColor: theme.colors.border,
             flexDirection: I18nManager.isRTL ? 'row-reverse' : 'row',
           },
@@ -49,12 +45,9 @@ export function SafeBottomBar({ state, descriptors, navigation }: BottomTabBarPr
           const { options } = descriptors[route.key];
           const isFocused = state.index === index;
           const labelKey = TAB_LABEL_KEYS[route.name] ?? route.name;
-
           const onPress = () => {
             const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
+            if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
           };
 
           return (
@@ -64,15 +57,18 @@ export function SafeBottomBar({ state, descriptors, navigation }: BottomTabBarPr
               accessibilityState={isFocused ? { selected: true } : {}}
               accessibilityLabel={options.tabBarAccessibilityLabel ?? t(labelKey)}
               onPress={onPress}
-              style={styles.tabButton}
-              hitSlop={8}
+              style={({ pressed }) => [styles.tabButton, { opacity: pressed ? 0.66 : 1 }]}
+              hitSlop={5}
             >
-              <Text style={styles.icon}>{TAB_ICONS[route.name] ?? '•'}</Text>
+              <View style={[styles.iconWrap, isFocused && { backgroundColor: theme.colors.accentSoft }]}>
+                <AppIcon
+                  name={TAB_ICONS[route.name] ?? 'ball'}
+                  size={21}
+                  color={isFocused ? theme.colors.accent : theme.colors.textMuted}
+                />
+              </View>
               <Text
-                style={[
-                  styles.label,
-                  { color: isFocused ? theme.colors.accent : theme.colors.textMuted },
-                ]}
+                style={[styles.label, { color: isFocused ? theme.colors.accent : theme.colors.textMuted }]}
                 numberOfLines={1}
               >
                 {t(labelKey)}
@@ -86,16 +82,8 @@ export function SafeBottomBar({ state, descriptors, navigation }: BottomTabBarPr
 }
 
 const styles = StyleSheet.create({
-  row: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 8,
-  },
-  tabButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
-  },
-  icon: { fontSize: 20 },
-  label: { fontSize: 11, marginTop: 2 },
+  row: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 7 },
+  tabButton: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 51 },
+  iconWrap: { width: 42, height: 27, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  label: { fontSize: 10, fontWeight: '700', marginTop: 2 },
 });

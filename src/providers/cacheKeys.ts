@@ -6,6 +6,8 @@ export const cacheKeys = {
   teams: (competitionId: string) => `teams:${competitionId}`,
   headToHead: (homeTeamId: string, awayTeamId: string) => `h2h:${homeTeamId}:${awayTeamId}`,
   form: (teamId: string) => `form:${teamId}`,
+  prediction: (matchId: string) => `prediction:${matchId}`,
+  analysis: (matchId: string) => `analysis:${matchId}`,
 };
 
 export const CACHE_TTL_MS = {
@@ -15,4 +17,6 @@ export const CACHE_TTL_MS = {
   recentResults: 60 * 60 * 1000,
   standings: 60 * 60 * 1000,
   historical: 7 * 24 * 60 * 60 * 1000,
+  prediction: 60 * 60 * 1000,
+  matchAnalysis: 24 * 60 * 60 * 1000,
 };

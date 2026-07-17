@@ -1,5 +1,19 @@
 import { API_FOOTBALL_KEY } from '../config/providerKeys';
-import type { Competition, Match, MatchStatus, StandingRow, Team } from '../types/domain';
+import type {
+  Competition,
+  LineupPlayer,
+  Match,
+  MatchAnalysis,
+  MatchEvent,
+  MatchEventType,
+  MatchLineup,
+  MatchPrediction,
+  MatchStatistic,
+  PlayerMatchPerformance,
+  MatchStatus,
+  StandingRow,
+  Team,
+} from '../types/domain';
 import { API_FOOTBALL_CAPABILITIES } from './capabilities';
 import { fetchJson } from './httpClient';
 import type { FootballDataProvider, FormResult, HeadToHeadResult, MatchesQuery } from './types';
@@ -95,6 +109,195 @@ function mapMatch(raw: any): Match {
     isKnockout,
     extraTimePossible: isKnockout,
     attribution: 'API-Football',
+  };
+}
+
+function numberValue(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const parsed = Number(String(value).replace('%', ''));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function percentValue(value: unknown): number {
+  return Math.max(0, Math.min(100, numberValue(value) ?? 0));
+}
+
+function mapPrediction(raw: any, providerMatchId: string): MatchPrediction | null {
+  const prediction = raw?.predictions;
+  if (!prediction) return null;
+  const homeWinPercent = percentValue(prediction.percent?.home);
+  const drawPercent = percentValue(prediction.percent?.draw);
+  const awayWinPercent = percentValue(prediction.percent?.away);
+  const homeExpected = numberValue(prediction.goals?.home);
+  const awayExpected = numberValue(prediction.goals?.away);
+  const predictedHomeGoals = Math.max(0, Math.min(9, Math.round(homeExpected ?? (homeWinPercent > awayWinPercent ? 2 : 1))));
+  const predictedAwayGoals = Math.max(0, Math.min(9, Math.round(awayExpected ?? (awayWinPercent > homeWinPercent ? 2 : 1))));
+  return {
+    matchId: `api-football:${providerMatchId}`,
+    predictedHomeGoals,
+    predictedAwayGoals,
+    homeWinPercent,
+    drawPercent,
+    awayWinPercent,
+    confidencePercent: Math.max(homeWinPercent, drawPercent, awayWinPercent),
+    advice: prediction.advice ?? prediction.winner?.comment ?? null,
+    goalRange: prediction.under_over ?? null,
+    source: 'provider_model',
+    sampleSize: 0,
+    generatedAtUtc: new Date().toISOString(),
+  };
+}
+
+function eventType(value: unknown): MatchEventType {
+  const normalized = String(value ?? '').toLowerCase();
+  if (normalized === 'goal') return 'goal';
+  if (normalized === 'card') return 'card';
+  if (normalized === 'subst') return 'substitution';
+  if (normalized === 'var') return 'var';
+  return 'other';
+}
+
+function mapEvents(rawEvents: any[], providerMatchId: string): MatchEvent[] {
+  return rawEvents.map((event, index) => ({
+    id: `api-football:${providerMatchId}:event:${index}`,
+    minute: numberValue(event.time?.elapsed) ?? 0,
+    extraMinute: numberValue(event.time?.extra),
+    teamId: `api-football:${event.team?.id}`,
+    teamName: event.team?.name ?? 'Unknown',
+    playerName: event.player?.name ?? null,
+    assistName: event.assist?.name ?? null,
+    type: eventType(event.type),
+    detail: event.detail ?? event.comments ?? event.type ?? '',
+  }));
+}
+
+function mapLineupPlayer(raw: any): LineupPlayer {
+  const player = raw?.player ?? raw;
+  return {
+    id: `api-football:${player?.id}`,
+    name: player?.name ?? 'Unknown',
+    number: numberValue(player?.number),
+    position: player?.pos ?? null,
+    grid: player?.grid ?? null,
+  };
+}
+
+function mapLineups(rawLineups: any[]): MatchLineup[] {
+  return rawLineups.map(lineup => ({
+    teamId: `api-football:${lineup.team?.id}`,
+    teamName: lineup.team?.name ?? 'Unknown',
+    teamCrestUrl: lineup.team?.logo ?? null,
+    formation: lineup.formation ?? null,
+    coachName: lineup.coach?.name ?? null,
+    starters: (lineup.startXI ?? []).map(mapLineupPlayer),
+    substitutes: (lineup.substitutes ?? []).map(mapLineupPlayer),
+  }));
+}
+
+const STATISTIC_ORDER = [
+  'Ball Possession',
+  'Total Shots',
+  'Shots on Goal',
+  'Shots off Goal',
+  'Blocked Shots',
+  'Corner Kicks',
+  'Offsides',
+  'Fouls',
+  'Yellow Cards',
+  'Red Cards',
+  'Goalkeeper Saves',
+  'Total passes',
+  'Passes accurate',
+  'Passes %',
+];
+
+function mapStatistics(rawStatistics: any[]): MatchStatistic[] {
+  const home = rawStatistics[0]?.statistics ?? [];
+  const away = rawStatistics[1]?.statistics ?? [];
+  const valueFor = (list: any[], key: string) => list.find(item => item.type === key)?.value ?? null;
+  return STATISTIC_ORDER.map((label, index) => ({
+    key: `${index}:${label}`,
+    label,
+    homeValue: valueFor(home, label),
+    awayValue: valueFor(away, label),
+  })).filter(stat => stat.homeValue != null || stat.awayValue != null);
+}
+
+function mapPerformers(rawTeams: any[]): PlayerMatchPerformance[] {
+  const performers: PlayerMatchPerformance[] = [];
+  for (const teamBlock of rawTeams) {
+    for (const item of teamBlock.players ?? []) {
+      const stats = item.statistics?.[0] ?? {};
+      performers.push({
+        playerId: `api-football:${item.player?.id}`,
+        playerName: item.player?.name ?? 'Unknown',
+        playerPhotoUrl: item.player?.photo ?? null,
+        teamId: `api-football:${teamBlock.team?.id}`,
+        teamName: teamBlock.team?.name ?? 'Unknown',
+        rating: numberValue(stats.games?.rating),
+        minutes: numberValue(stats.games?.minutes),
+        goals: numberValue(stats.goals?.total) ?? 0,
+        assists: numberValue(stats.goals?.assists) ?? 0,
+        shotsOnTarget: numberValue(stats.shots?.on) ?? 0,
+        keyPasses: numberValue(stats.passes?.key) ?? 0,
+        tackles: numberValue(stats.tackles?.total) ?? 0,
+      });
+    }
+  }
+  return performers
+    .filter(player => player.rating != null || player.goals > 0 || player.assists > 0)
+    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+    .slice(0, 6);
+}
+
+function statisticNumber(statistics: MatchStatistic[], label: string, side: 'home' | 'away'): number | null {
+  const stat = statistics.find(item => item.label === label);
+  return numberValue(side === 'home' ? stat?.homeValue : stat?.awayValue);
+}
+
+function buildSummary(match: Match, statistics: MatchStatistic[]): string[] {
+  const summary: string[] = [];
+  const score = match.fullTimeScore ?? match.currentScore;
+  if (score?.home != null && score.away != null) {
+    if (score.home === score.away) summary.push(`${match.homeTeamName} and ${match.awayTeamName} finished level at ${score.home}-${score.away}.`);
+    else {
+      const winner = score.home > score.away ? match.homeTeamName : match.awayTeamName;
+      summary.push(`${winner} won ${score.home}-${score.away}.`);
+    }
+  }
+  const homePossession = statisticNumber(statistics, 'Ball Possession', 'home');
+  const awayPossession = statisticNumber(statistics, 'Ball Possession', 'away');
+  if (homePossession != null && awayPossession != null) {
+    const leader = homePossession >= awayPossession ? match.homeTeamName : match.awayTeamName;
+    summary.push(`${leader} had more of the ball (${Math.max(homePossession, awayPossession)}% possession).`);
+  }
+  const homeOnTarget = statisticNumber(statistics, 'Shots on Goal', 'home');
+  const awayOnTarget = statisticNumber(statistics, 'Shots on Goal', 'away');
+  if (homeOnTarget != null && awayOnTarget != null) {
+    summary.push(`Shots on target: ${match.homeTeamName} ${homeOnTarget}, ${match.awayTeamName} ${awayOnTarget}.`);
+  }
+  const homeCards = (statisticNumber(statistics, 'Yellow Cards', 'home') ?? 0) + (statisticNumber(statistics, 'Red Cards', 'home') ?? 0);
+  const awayCards = (statisticNumber(statistics, 'Yellow Cards', 'away') ?? 0) + (statisticNumber(statistics, 'Red Cards', 'away') ?? 0);
+  if (homeCards + awayCards > 0) summary.push(`The match produced ${homeCards + awayCards} card${homeCards + awayCards === 1 ? '' : 's'}.`);
+  return summary;
+}
+
+function mapAnalysis(raw: any, providerMatchId: string): MatchAnalysis {
+  const match = mapMatch(raw);
+  const events = mapEvents(raw.events ?? [], providerMatchId);
+  const statistics = mapStatistics(raw.statistics ?? []);
+  const lineups = mapLineups(raw.lineups ?? []);
+  const topPerformers = mapPerformers(raw.players ?? []);
+  return {
+    matchId: match.id,
+    providerId: 'api-football',
+    events,
+    statistics,
+    lineups,
+    topPerformers,
+    summary: buildSummary(match, statistics),
+    hasExtendedData: events.length > 0 || statistics.length > 0 || lineups.length > 0 || topPerformers.length > 0,
+    generatedAtUtc: new Date().toISOString(),
   };
 }
 
@@ -268,6 +471,23 @@ class ApiFootballProvider implements FootballDataProvider {
     const homeForm = fixtures.filter(m => String(m.teams?.home?.id) === teamProviderId).slice(0, 5).map(toResult).filter((r): r is 'W' | 'D' | 'L' => !!r);
     const awayForm = fixtures.filter(m => String(m.teams?.away?.id) === teamProviderId).slice(0, 5).map(toResult).filter((r): r is 'W' | 'D' | 'L' => !!r);
     return { lastFive, homeForm, awayForm };
+  }
+
+  async getPrediction(providerMatchId: string): Promise<MatchPrediction | null> {
+    if (!this.isConfigured()) return null;
+    const data = await fetchJson<any>(this.id, `${BASE_URL}/predictions?fixture=${providerMatchId}`, {
+      headers: this.headers(),
+    });
+    return mapPrediction(data.response?.[0], providerMatchId);
+  }
+
+  async getMatchAnalysis(providerMatchId: string): Promise<MatchAnalysis | null> {
+    if (!this.isConfigured()) return null;
+    const data = await fetchJson<any>(this.id, `${BASE_URL}/fixtures?id=${providerMatchId}`, {
+      headers: this.headers(),
+    });
+    const first = data.response?.[0];
+    return first ? mapAnalysis(first, providerMatchId) : null;
   }
 }
 
