@@ -47,6 +47,7 @@ export default {
     competitionsBody: 'Select the leagues and cups you care about. You can change this anytime.',
     teamsTitle: 'Follow your teams',
     teamsBody: 'Pick teams from your selected competitions to personalize My Matchday.',
+    teamsBodyDefault: 'Here are some popular teams to get you started — pick any, or skip and choose later.',
     preferencesTitle: 'Set your preferences',
     preferencesBody: 'These can all be changed later in Settings.',
     reviewTitle: "You're all set",

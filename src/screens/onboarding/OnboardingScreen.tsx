@@ -1,11 +1,11 @@
 import { useNavigation } from '@react-navigation/native';
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeScrollView } from '../../components/SafeScrollView';
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { SafeStickyAction } from '../../components/SafeStickyAction';
-import { PrimaryButton, SecondaryButton } from '../../components/ui';
+import { LoadingState, PrimaryButton, SecondaryButton } from '../../components/ui';
 import { useSuppressBanner } from '../../ads/useSuppressBanner';
 import { useCompetitions } from '../../hooks/useCompetitions';
 import { useFavorites } from '../../state/FavoritesContext';
@@ -19,6 +19,11 @@ import type { Team } from '../../types/domain';
 
 const STEPS = ['intro', 'competitions', 'teams', 'preferences', 'review'] as const;
 type Step = typeof STEPS[number];
+
+// Shown by default in the teams step so it's never empty, before the user
+// has picked any favorite competitions — matches this app's "minimal input,
+// everything optional" onboarding philosophy.
+const DEFAULT_POPULAR_COMPETITION_CODES = ['en.1', 'es.1', 'de.1', 'it.1', 'fr.1', 'mls.1'];
 
 export function OnboardingScreen() {
   const navigation = useNavigation<any>();
@@ -34,18 +39,27 @@ export function OnboardingScreen() {
   const [competitionSearch, setCompetitionSearch] = useState('');
   const [teamSearch, setTeamSearch] = useState('');
   const [teamsForFavorites, setTeamsForFavorites] = useState<Team[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(true);
   const step: Step = STEPS[stepIndex];
 
+  const favoriteCompetitions = useMemo(
+    () => competitions.filter(c => favoriteCompetitionIds.has(c.id)),
+    [competitions, favoriteCompetitionIds],
+  );
+  const showingPopularDefault = favoriteCompetitions.length === 0;
+
   React.useEffect(() => {
-    const favComps = competitions.filter(c => favoriteCompetitionIds.has(c.id));
-    if (favComps.length === 0) {
-      setTeamsForFavorites([]);
-      return;
-    }
-    Promise.all(favComps.map(c => fetchTeams(c.providerCompetitionId))).then(results => {
+    if (competitions.length === 0) return;
+    const source = showingPopularDefault
+      ? competitions.filter(c => DEFAULT_POPULAR_COMPETITION_CODES.includes(c.providerCompetitionId))
+      : favoriteCompetitions;
+    setTeamsLoading(true);
+    Promise.all(source.map(c => fetchTeams(c.providerCompetitionId))).then(results => {
       setTeamsForFavorites(results.flatMap(r => r.data));
+      setTeamsLoading(false);
     });
-  }, [competitions, favoriteCompetitionIds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [competitions, favoriteCompetitions, showingPopularDefault]);
 
   const goNext = () => setStepIndex(i => Math.min(i + 1, STEPS.length - 1));
   const goBack = () => setStepIndex(i => Math.max(i - 1, 0));
@@ -55,7 +69,7 @@ export function OnboardingScreen() {
     navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
   };
 
-  const filteredCompetitions = competitions.filter(c => c.name.toLowerCase().includes(competitionSearch.toLowerCase()));
+  const filteredCompetitions = competitions.filter(c => c.name.toLowerCase().includes(competitionSearch.toLowerCase()) || c.country?.toLowerCase().includes(competitionSearch.toLowerCase()));
   const filteredTeams = teamsForFavorites.filter(tm => tm.name.toLowerCase().includes(teamSearch.toLowerCase()));
 
   return (
@@ -63,6 +77,7 @@ export function OnboardingScreen() {
       <SafeScrollView contentBottomPadding={20}>
         {step === 'intro' ? (
           <View style={styles.introBlock}>
+            <Image source={require('../../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
             <Text style={[styles.appTitle, { color: theme.colors.textPrimary }]}>{t('onboarding.welcomeTitle')}</Text>
             <Text style={[styles.body, { color: theme.colors.textSecondary }]}>{t('onboarding.welcomeBody')}</Text>
           </View>
@@ -71,7 +86,7 @@ export function OnboardingScreen() {
         {step === 'competitions' ? (
           <View style={styles.block}>
             <Text style={[styles.stepTitle, { color: theme.colors.textPrimary }]}>{t('onboarding.competitionsTitle')}</Text>
-            <Text style={[styles.body, { color: theme.colors.textSecondary }]}>{t('onboarding.competitionsBody')}</Text>
+            <Text style={[styles.body, { color: theme.colors.textSecondary, textAlign: 'left' }]}>{t('onboarding.competitionsBody')}</Text>
             <TextInput
               value={competitionSearch}
               onChangeText={setCompetitionSearch}
@@ -87,7 +102,7 @@ export function OnboardingScreen() {
                   style={[styles.chip, { backgroundColor: favoriteCompetitionIds.has(c.id) ? theme.colors.accent : theme.colors.surfaceAlt }]}
                 >
                   <Text style={{ color: favoriteCompetitionIds.has(c.id) ? theme.colors.accentText : theme.colors.textSecondary, fontSize: 12 }}>
-                    {c.name}
+                    {c.name} · {c.country}
                   </Text>
                 </Pressable>
               ))}
@@ -98,9 +113,11 @@ export function OnboardingScreen() {
         {step === 'teams' ? (
           <View style={styles.block}>
             <Text style={[styles.stepTitle, { color: theme.colors.textPrimary }]}>{t('onboarding.teamsTitle')}</Text>
-            <Text style={[styles.body, { color: theme.colors.textSecondary }]}>{t('onboarding.teamsBody')}</Text>
-            {teamsForFavorites.length === 0 ? (
-              <Text style={{ color: theme.colors.textMuted, marginTop: 10 }}>{t('onboarding.noTeamsYet')}</Text>
+            <Text style={[styles.body, { color: theme.colors.textSecondary, textAlign: 'left' }]}>
+              {showingPopularDefault ? t('onboarding.teamsBodyDefault') : t('onboarding.teamsBody')}
+            </Text>
+            {teamsLoading ? (
+              <LoadingState label={t('common.loading')} />
             ) : (
               <>
                 <TextInput
@@ -131,7 +148,7 @@ export function OnboardingScreen() {
         {step === 'preferences' ? (
           <View style={styles.block}>
             <Text style={[styles.stepTitle, { color: theme.colors.textPrimary }]}>{t('onboarding.preferencesTitle')}</Text>
-            <Text style={[styles.body, { color: theme.colors.textSecondary }]}>{t('onboarding.preferencesBody')}</Text>
+            <Text style={[styles.body, { color: theme.colors.textSecondary, textAlign: 'left' }]}>{t('onboarding.preferencesBody')}</Text>
 
             <PreferenceRow label={t('onboarding.language')} options={['en', 'ar']} displayLabels={['English', 'العربية']}
               value={preferences.language} onSelect={v => update({ language: v as LanguagePreference })} theme={theme} />
@@ -200,6 +217,7 @@ function PreferenceRow({
 
 const styles = StyleSheet.create({
   introBlock: { padding: 20, alignItems: 'center' },
+  logo: { width: 120, height: 120, borderRadius: 26, marginBottom: 20 },
   block: { padding: 16 },
   appTitle: { fontSize: 24, fontWeight: '800', textAlign: 'center', marginBottom: 12 },
   stepTitle: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
