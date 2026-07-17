@@ -88,8 +88,8 @@ Football Scores Today ships four provider adapters behind one interface (`src/pr
 | Provider | Key required? | Notes |
 |---|---|---|
 | **OpenFootball** | No | Public-domain fixture/result datasets. No live status, no standings, no crests. Always available. |
-| **football-data.org** | Yes (free tier available) | Primary configurable current-data source (API v4). Schedules, scores, standings, teams, head-to-head. |
-| **API-Football** | Yes (free tier available) | Optional enrichment source (api-sports.io). |
+| **football-data.org** | Yes (free tier available) | Schedules, scores, standings, teams, and head-to-head data. |
+| **API-Football** | Yes (free tier available) | Richest client-side source: live fixtures, club crests, predictions, events, statistics, lineups, and player ratings. |
 | **Cached** | No | Serves the last successful response for a query when every live provider fails or the device is offline. |
 
 ### football-data.org setup
@@ -99,9 +99,13 @@ Football Scores Today ships four provider adapters behind one interface (`src/pr
 ### OpenFootball fallback
 No setup needed — it's the always-available, no-key fallback and default source when nothing else is configured.
 
-### API-Football (optional)
+### API-Football (recommended for the complete experience)
 1. Register at https://dashboard.api-football.com/register.
 2. Put your key in `src/config/providerKeys.ts` as `API_FOOTBALL_KEY`.
+
+No independent backend is required: the installed app calls the selected football provider directly and caches responses on the device. Because a key compiled into a mobile app can be extracted, restrict the provider account/key where supported, monitor its quota, and use a plan sized for production traffic. API-Football is prioritized when configured; the app limits list-page enrichment requests and uses cached predictions/analysis to protect the daily allowance.
+
+Provider predictions are shown with home/draw/away probabilities and a confidence label. When the provider has no prediction for a fixture, the app computes a conservative on-device model from real recent-form and head-to-head samples; if there is not enough data, it shows no prediction rather than inventing one. Finished-match analysis uses provider events, team statistics, lineups, and player performance data when supplied.
 
 The app remains fully usable with both keys left blank — `providerManager.ts` skips unconfigured providers and falls back automatically.
 
@@ -116,8 +120,12 @@ All ad configuration lives in **`src/config/adsConfig.ts`**, the single source o
 - **Production App ID:** `ca-app-pub-7831002909037560~7761656669` (also in `AndroidManifest.xml` as `com.google.android.gms.ads.APPLICATION_ID`, and in `app.json` for reference)
 - **Production banner:** `ca-app-pub-7831002909037560/5490596409`
 - **Production interstitial:** `ca-app-pub-7831002909037560/8033119406`
+- **Production native:** create a dedicated Native Advanced unit in AdMob, then set `PRODUCTION_NATIVE_ID` in `adsConfig.ts`
+- **Production app open:** create a dedicated App Open unit in AdMob, then set `PRODUCTION_APP_OPEN_ID` in `adsConfig.ts`
 - **Debug (test) banner:** `ca-app-pub-3940256099942544/9214589741`
 - **Debug (test) interstitial:** `ca-app-pub-3940256099942544/1033173712`
+- **Debug (test) native:** `ca-app-pub-3940256099942544/2247696110`
+- **Debug (test) app open:** `ca-app-pub-3940256099942544/9257395921`
 
 `adsConfig.ts` picks test vs. production IDs based on `__DEV__`, validates every ID's shape at import time, and **throws in release builds** if a test ID is ever selected there. Never edit the production IDs.
 
@@ -125,9 +133,9 @@ All ad configuration lives in **`src/config/adsConfig.ts`**, the single source o
 
 `src/ads/AdConsentManager.ts` wraps `react-native-google-mobile-ads`'s UMP APIs: request updated consent info → show the form only if required → gate `mobileAds().initialize()` on the result (`src/ads/AdService.ts`). Ads are never requested before this resolves. Users can revisit their choice anytime from **More → Advertising & Privacy → Manage advertising choices** (`AdvertisingPrivacyChoicesScreen`).
 
-## Banner & interstitial architecture
+## Ad placement architecture
 
-See `store_assets/monetization-implementation-notes.md` for the full component map. In short: one persistent banner (`SafeAdContainer`) lives inside the custom tab bar (`SafeBottomBar`) and survives tab switches; screens that must never show it call `useSuppressBanner()`. Interstitials preload one at a time (`AdPreloadController`) and are only requested to show via `maybeShowInterstitial(placement)` **after** a user-visible action already completed — frequency caps live in `AdFrequencyController.ts` and `adsConfig.ts`'s `FREQUENCY_CAPS`.
+See `store_assets/monetization-implementation-notes.md` for the full component map. In short: one persistent banner (`SafeAdContainer`) lives inside the custom tab bar (`SafeBottomBar`) and survives tab switches; screens that must never show it call `useSuppressBanner()`. Native ads appear naturally after the fourth match or headline and collapse completely if unavailable. Interstitials preload one at a time (`AdPreloadController`) and are only requested to show via `maybeShowInterstitial(placement)` **after** a user-visible action already completed. App-open ads are limited to returning users beginning a genuinely new session. All formats remain consent-gated and frequency-capped.
 
 ## app-ads.txt
 

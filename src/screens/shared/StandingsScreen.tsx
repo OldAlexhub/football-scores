@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { SafeScrollView } from '../../components/SafeScrollView';
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { EmptyState, LoadingState } from '../../components/ui';
+import { TeamCrest } from '../../components/TeamCrest';
 import { fetchStandings } from '../../providers/providerManager';
 import { useFavorites } from '../../state/FavoritesContext';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -79,7 +80,10 @@ export function StandingsScreen() {
                 ]}
               >
                 <Text style={[styles.cell, styles.posCell, { color: theme.colors.textPrimary }]}>{row.position}</Text>
-                <Text style={[styles.cell, styles.teamCell, { color: theme.colors.textPrimary }]} numberOfLines={1}>{row.teamName}</Text>
+                <View style={styles.teamCell}>
+                  <TeamCrest uri={row.teamCrestUrl} name={row.teamName} size={27} />
+                  <Text style={[styles.cell, styles.teamName, { color: theme.colors.textPrimary }]} numberOfLines={1}>{row.teamName}</Text>
+                </View>
                 <Text style={[styles.cell, styles.numCell, { color: theme.colors.textSecondary }]}>{row.played}</Text>
                 <Text style={[styles.cell, styles.numCell, { color: theme.colors.textSecondary }]}>{row.goalDifference}</Text>
                 <Text style={[styles.cell, styles.numCell, { color: theme.colors.textPrimary, fontWeight: '700' }]}>{row.points}</Text>
@@ -99,6 +103,7 @@ const styles = StyleSheet.create({
   cell: { fontSize: 12 },
   headCell: { fontSize: 10, fontWeight: '700' },
   posCell: { width: 26 },
-  teamCell: { flex: 1 },
+  teamCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  teamName: { flex: 1, fontWeight: '700' },
   numCell: { width: 34, textAlign: 'center' },
 });

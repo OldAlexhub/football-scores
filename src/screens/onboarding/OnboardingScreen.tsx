@@ -70,7 +70,9 @@ export function OnboardingScreen() {
     navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
   };
 
-  const filteredCompetitions = competitions.filter(c => c.name.toLowerCase().includes(competitionSearch.toLowerCase()) || c.country?.toLowerCase().includes(competitionSearch.toLowerCase()));
+  const filteredCompetitions = competitions
+    .filter(c => c.name.toLowerCase().includes(competitionSearch.toLowerCase()) || c.country?.toLowerCase().includes(competitionSearch.toLowerCase()))
+    .slice(0, competitionSearch.trim() ? 100 : 60);
   const filteredTeams = teamsForFavorites.filter(tm => tm.name.toLowerCase().includes(teamSearch.toLowerCase()));
 
   return (

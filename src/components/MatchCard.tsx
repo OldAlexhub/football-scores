@@ -5,7 +5,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { usePreferences } from '../state/PreferencesContext';
 import { formatKickoffTime } from '../utils/dates';
 import { flagForCountry } from '../utils/countryFlags';
-import type { Match } from '../types/domain';
+import type { Match, MatchPrediction } from '../types/domain';
 import { AppIcon, type AppIconName } from './AppIcon';
 import { TeamCrest } from './TeamCrest';
 
@@ -48,6 +48,7 @@ export function MatchCard({
   isFavorite,
   hasReminder,
   hasPrediction,
+  modelPrediction,
   onPress,
   onToggleFavorite,
   onToggleReminder,
@@ -59,6 +60,7 @@ export function MatchCard({
   isFavorite: boolean;
   hasReminder: boolean;
   hasPrediction: boolean;
+  modelPrediction?: MatchPrediction | null;
   onPress: () => void;
   onToggleFavorite?: () => void;
   onToggleReminder?: () => void;
@@ -139,6 +141,14 @@ export function MatchCard({
             <>
               <Text style={[styles.timeText, { color: theme.colors.textPrimary }]}>{timeLabel}</Text>
               <Text style={[styles.kickoffLabel, { color: theme.colors.textMuted }]}>{t('matchStatus.scheduled')}</Text>
+              {modelPrediction ? (
+                <View style={[styles.modelBadge, { backgroundColor: theme.colors.accentSoft }]}>
+                  <AppIcon name="spark" size={11} color={theme.colors.accent} />
+                  <Text style={[styles.modelText, { color: theme.colors.accent }]}>
+                    {modelPrediction.predictedHomeGoals}-{modelPrediction.predictedAwayGoals}
+                  </Text>
+                </View>
+              ) : null}
             </>
           )}
           {match.matchweek != null ? (
@@ -202,6 +212,8 @@ const styles = StyleSheet.create({
   scoreText: { fontSize: 24, lineHeight: 30, fontWeight: '900', letterSpacing: -0.4 },
   timeText: { fontSize: 17, fontWeight: '900' },
   kickoffLabel: { fontSize: 9, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
+  modelBadge: { height: 21, borderRadius: 10, paddingHorizontal: 7, marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 3 },
+  modelText: { fontSize: 9, fontWeight: '900' },
   liveLabel: { fontSize: 9, fontWeight: '900', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.7 },
   centerBadge: { alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 10, gap: 3 },
   spoilerLabel: { fontSize: 9, fontWeight: '800', textAlign: 'center' },

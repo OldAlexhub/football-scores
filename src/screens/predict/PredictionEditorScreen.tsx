@@ -6,6 +6,7 @@ import { KeyboardSafeScreen } from '../../components/KeyboardSafeScreen';
 import { SafeScrollView } from '../../components/SafeScrollView';
 import { SafeStickyAction } from '../../components/SafeStickyAction';
 import { PrimaryButton, SecondaryButton, DangerButton } from '../../components/ui';
+import { AppIcon } from '../../components/AppIcon';
 import { useSuppressBanner } from '../../ads/useSuppressBanner';
 import { maybeShowInterstitial } from '../../ads/InterstitialManager';
 import type { MatchDetailsParams } from '../../navigation/types';
@@ -126,8 +127,8 @@ export function PredictionEditorScreen() {
         <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{t('predict.confidence')}</Text>
         <View style={styles.confidenceRow}>
           {[1, 2, 3, 4, 5].map(n => (
-            <Pressable key={n} onPress={() => setConfidence(n as 1 | 2 | 3 | 4 | 5)} hitSlop={6}>
-              <Text style={{ fontSize: 22, color: n <= confidence ? theme.colors.accent : theme.colors.border }}>★</Text>
+            <Pressable key={n} onPress={() => setConfidence(n as 1 | 2 | 3 | 4 | 5)} hitSlop={6} style={styles.confidenceButton}>
+              <AppIcon name="star" size={24} color={n <= confidence ? theme.colors.accent : theme.colors.border} />
             </Pressable>
           ))}
         </View>
@@ -159,6 +160,7 @@ const styles = StyleSheet.create({
   scoreRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
   scoreInput: { width: 60, textAlign: 'center', fontSize: 20, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, paddingVertical: 8 },
   confidenceRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16 },
+  confidenceButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
   noteInput: { marginHorizontal: 16, minHeight: 70, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: 10, textAlignVertical: 'top' },
   lockedBox: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
 });

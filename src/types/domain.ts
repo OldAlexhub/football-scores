@@ -203,6 +203,7 @@ export interface StandingRow {
   position: number;
   teamId: string;
   teamName: string;
+  teamCrestUrl?: string | null;
   played: number;
   wins: number;
   draws: number;
@@ -312,6 +313,8 @@ export interface AdFrequencyState {
   lastEligibleActionType: string | null;
   bannerLastRequestedAt: string | null;
   bannerLastImpressionAt: string | null;
+  appSessionCount: number;
+  lastAppOpenAdAt: string | null;
 }
 
 export interface AdSessionState {

@@ -17,7 +17,7 @@ export function Card({ children, style }: { children: React.ReactNode; style?: S
     <View
       style={[
         styles.card,
-        { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+        { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.border },
         style,
       ]}
     >
@@ -158,7 +158,16 @@ export function Badge({ label, tone = 'neutral' }: { label: string; tone?: 'neut
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, padding: 14 },
+  card: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    padding: 16,
+    elevation: 1,
+    shadowColor: '#000000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -166,9 +175,9 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 8,
   },
-  sectionTitle: { fontSize: 16, fontWeight: '700' },
-  buttonBase: { paddingVertical: 12, paddingHorizontal: 18, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  buttonLabel: { fontSize: 14, fontWeight: '600' },
+  sectionTitle: { fontSize: 17, fontWeight: '800' },
+  buttonBase: { minHeight: 46, paddingVertical: 11, paddingHorizontal: 18, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  buttonLabel: { fontSize: 14, fontWeight: '700' },
   center: { alignItems: 'center', justifyContent: 'center', padding: 32 },
   centerLabel: { marginTop: 10, fontSize: 13 },
   emptyTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6, textAlign: 'center' },

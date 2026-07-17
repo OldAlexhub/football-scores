@@ -1,14 +1,16 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AppIcon } from '../../components/AppIcon';
+import { InFeedNativeAd } from '../../ads/InFeedNativeAd';
 import { FilterChip } from '../../components/FilterChip';
 import { MatchCard } from '../../components/MatchCard';
 import { EmptyState, LoadingState, PrimaryButton } from '../../components/ui';
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { useCompetitions } from '../../hooks/useCompetitions';
 import { useMatchesRange } from '../../hooks/useMatchesRange';
+import { fetchMatchPrediction } from '../../providers/providerManager';
 import type { MatchesStackParamList } from '../../navigation/types';
 import { useFavorites } from '../../state/FavoritesContext';
 import { usePreferences } from '../../state/PreferencesContext';
@@ -18,7 +20,7 @@ import { usePredictions } from '../../state/PredictionsContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { addDays, endOfLocalDay, startOfLocalDay, upcomingWeekendRange } from '../../utils/dates';
 import { shouldShieldMatch } from '../../services/spoilerShield';
-import type { Match, MatchStatus, ProviderId } from '../../types/domain';
+import type { Match, MatchPrediction, MatchStatus, ProviderId } from '../../types/domain';
 
 type Filter = 'all' | 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled' | 'favorites';
 
@@ -53,6 +55,7 @@ export function MatchesHomeScreen({ navigation }: Props) {
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
   const [selectedCompetitionId, setSelectedCompetitionId] = useState<string | null>(null);
+  const [modelPredictions, setModelPredictions] = useState<Record<string, MatchPrediction>>({});
 
   const dateFromUtc = selectedDate.toISOString();
   const dateToUtc = endOfLocalDay(selectedDate).toISOString();
@@ -86,19 +89,37 @@ export function MatchesHomeScreen({ navigation }: Props) {
 
   const goToWeekend = () => setSelectedDate(upcomingWeekendRange().start);
 
-  const renderItem = ({ item }: { item: Match }) => {
+  useEffect(() => {
+    let mounted = true;
+    const candidates = result.matches
+      .filter(match => match.status === 'scheduled' && match.providerId === 'api-football')
+      .slice(0, 6);
+    Promise.all(candidates.map(async match => ({ matchId: match.id, prediction: await fetchMatchPrediction(match) }))).then(items => {
+      if (!mounted) return;
+      setModelPredictions(current => {
+        const next = { ...current };
+        items.forEach(item => { if (item.prediction) next[item.matchId] = item.prediction; });
+        return next;
+      });
+    });
+    return () => { mounted = false; };
+  }, [result.matches]);
+
+  const renderItem = ({ item, index }: { item: Match; index: number }) => {
     const planItem = getItem(item.id) ?? null;
     const shielded = shouldShieldMatch(item, planItem, preferences.defaultSpoilerShieldEnabled);
     const reminder = getReminderFor(item.id);
     const homeFavorite = favoriteTeamIds.has(item.homeTeamId);
     const awayFavorite = favoriteTeamIds.has(item.awayTeamId);
     return (
-      <MatchCard
+      <>
+        <MatchCard
         match={item}
         spoilerShielded={shielded}
         isFavorite={homeFavorite || awayFavorite}
         hasReminder={!!reminder && reminder.status === 'scheduled'}
         hasPrediction={!!getPredictionFor(item.id)}
+        modelPrediction={modelPredictions[item.id]}
         onPress={() => navigation.navigate('MatchDetails', { matchId: item.id, match: item })}
         onToggleFavorite={() => toggleTeam(homeFavorite ? item.homeTeamId : awayFavorite ? item.awayTeamId : item.homeTeamId)}
         onAddToMatchday={() => addOrUpdate(item.id, { manuallyAdded: true })}
@@ -109,7 +130,9 @@ export function MatchesHomeScreen({ navigation }: Props) {
         onToggleSpoilerShield={() => addOrUpdate(item.id, {
           spoilerShieldEnabled: !(planItem?.spoilerShieldEnabled ?? preferences.defaultSpoilerShieldEnabled),
         })}
-      />
+        />
+        {index === 3 ? <InFeedNativeAd compact /> : null}
+      </>
     );
   };
 
@@ -144,7 +167,12 @@ export function MatchesHomeScreen({ navigation }: Props) {
       </View>
 
       {favoriteCompetitions.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.competitionStrip}
+          contentContainerStyle={styles.chipsContent}
+        >
           <FilterChip label={t('matches.allCompetitions')} active={!selectedCompetitionId} onPress={() => setSelectedCompetitionId(null)} />
           {favoriteCompetitions.map(competition => (
             <FilterChip
@@ -157,7 +185,12 @@ export function MatchesHomeScreen({ navigation }: Props) {
         </ScrollView>
       ) : null}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateContent}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.dateStrip}
+        contentContainerStyle={styles.dateContent}
+      >
         {dateStrip.map(date => {
           const selected = date.toDateString() === selectedDate.toDateString();
           return (
@@ -193,7 +226,12 @@ export function MatchesHomeScreen({ navigation }: Props) {
         </Pressable>
       </ScrollView>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusContent}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.statusStrip}
+        contentContainerStyle={styles.statusContent}
+      >
         {(['all', 'live', 'scheduled', 'finished', 'postponed', 'favorites'] as Filter[]).map(value => (
           <FilterChip
             key={value}
@@ -249,13 +287,16 @@ const styles = StyleSheet.create({
   headerAction: { width: 42, height: 42, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   searchWrap: { height: 46, borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, gap: 9 },
   search: { flex: 1, height: 44, paddingVertical: 0, fontSize: 14 },
+  competitionStrip: { height: 49, flexGrow: 0, flexShrink: 0 },
   chipsContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 3, gap: 8 },
+  dateStrip: { height: 69, flexGrow: 0, flexShrink: 0 },
   dateContent: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, gap: 8 },
   dateTile: { width: 55, height: 55, borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   dateWeekday: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
   dateDay: { fontSize: 18, lineHeight: 22, fontWeight: '900' },
   weekendTile: { minWidth: 80, height: 55, borderRadius: 16, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', gap: 3 },
   weekendLabel: { fontSize: 10, fontWeight: '800' },
+  statusStrip: { height: 47, flexGrow: 0, flexShrink: 0 },
   statusContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 5, gap: 8 },
   metaRow: { minHeight: 31, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   sourcePill: { height: 24, borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, gap: 6 },

@@ -19,6 +19,7 @@ import { fetchJson } from './httpClient';
 import type { FootballDataProvider, FormResult, HeadToHeadResult, MatchesQuery } from './types';
 
 const BASE_URL = 'https://v3.football.api-sports.io';
+const POPULAR_LEAGUE_IDS = [2, 39, 140, 78, 135, 61, 3, 848, 253, 71, 128, 262, 307, 1, 4];
 
 function statusFromApi(short: string): MatchStatus {
   switch (short) {
@@ -331,13 +332,33 @@ class ApiFootballProvider implements FootballDataProvider {
       favoriteOrder: null,
       lastRefreshedAt: new Date().toISOString(),
       attribution: 'API-Football',
-    }));
+    })).sort((a: Competition, b: Competition) => {
+      const aPopular = POPULAR_LEAGUE_IDS.indexOf(Number(a.providerCompetitionId));
+      const bPopular = POPULAR_LEAGUE_IDS.indexOf(Number(b.providerCompetitionId));
+      if (aPopular !== -1 || bPopular !== -1) {
+        if (aPopular === -1) return 1;
+        if (bPopular === -1) return -1;
+        return aPopular - bPopular;
+      }
+      return `${a.country ?? ''}:${a.name}`.localeCompare(`${b.country ?? ''}:${b.name}`);
+    });
   }
 
   async getMatches(query: MatchesQuery): Promise<Match[]> {
     if (!this.isConfigured()) return [];
     const from = query.dateFromUtc.slice(0, 10);
     const to = query.dateToUtc.slice(0, 10);
+    if (query.competitionProviderIds?.length === 1) {
+      const start = new Date(`${from}T00:00:00Z`);
+      const season = start.getUTCMonth() < 6 ? start.getUTCFullYear() - 1 : start.getUTCFullYear();
+      const leagueId = query.competitionProviderIds[0];
+      const data = await fetchJson<any>(
+        this.id,
+        `${BASE_URL}/fixtures?league=${leagueId}&season=${season}&from=${from}&to=${to}`,
+        { headers: this.headers() },
+      );
+      return (data.response ?? []).map(mapMatch);
+    }
     const results: Match[] = [];
     let cursor = new Date(from);
     const end = new Date(to);
@@ -380,6 +401,7 @@ class ApiFootballProvider implements FootballDataProvider {
           position: row.rank,
           teamId: `api-football:${row.team?.id}`,
           teamName: row.team?.name ?? 'Unknown',
+          teamCrestUrl: row.team?.logo ?? null,
           played: row.all?.played ?? 0,
           wins: row.all?.win ?? 0,
           draws: row.all?.draw ?? 0,

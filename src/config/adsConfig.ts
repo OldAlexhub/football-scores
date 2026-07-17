@@ -10,9 +10,15 @@ export const ADMOB_APPLICATION_ID = 'ca-app-pub-7831002909037560~7761656669';
 
 const PRODUCTION_BANNER_ID = 'ca-app-pub-7831002909037560/5490596409';
 const PRODUCTION_INTERSTITIAL_ID = 'ca-app-pub-7831002909037560/8033119406';
+// Create dedicated Native and App Open units in AdMob, then paste them here.
+// These intentionally stay disabled in release until real unit IDs exist.
+const PRODUCTION_NATIVE_ID = '';
+const PRODUCTION_APP_OPEN_ID = '';
 
 const TEST_BANNER_ID = 'ca-app-pub-3940256099942544/9214589741';
 const TEST_INTERSTITIAL_ID = 'ca-app-pub-3940256099942544/1033173712';
+const TEST_NATIVE_ID = 'ca-app-pub-3940256099942544/2247696110';
+const TEST_APP_OPEN_ID = 'ca-app-pub-3940256099942544/9257395921';
 
 const APP_ID_PATTERN = /^ca-app-pub-\d{16}~\d{10}$/;
 const AD_UNIT_ID_PATTERN = /^ca-app-pub-\d{16}\/\d{10}$/;
@@ -35,6 +41,10 @@ assertValidAdUnitId(PRODUCTION_BANNER_ID, 'production banner');
 assertValidAdUnitId(PRODUCTION_INTERSTITIAL_ID, 'production interstitial');
 assertValidAdUnitId(TEST_BANNER_ID, 'test banner');
 assertValidAdUnitId(TEST_INTERSTITIAL_ID, 'test interstitial');
+assertValidAdUnitId(TEST_NATIVE_ID, 'test native');
+assertValidAdUnitId(TEST_APP_OPEN_ID, 'test app open');
+if (PRODUCTION_NATIVE_ID) assertValidAdUnitId(PRODUCTION_NATIVE_ID, 'production native');
+if (PRODUCTION_APP_OPEN_ID) assertValidAdUnitId(PRODUCTION_APP_OPEN_ID, 'production app open');
 
 if (!__DEV__) {
   // Release build safety net: fail loudly rather than silently serve Google's
@@ -50,6 +60,10 @@ if (!__DEV__) {
 
 export const BANNER_AD_UNIT_ID = __DEV__ ? TEST_BANNER_ID : PRODUCTION_BANNER_ID;
 export const INTERSTITIAL_AD_UNIT_ID = __DEV__ ? TEST_INTERSTITIAL_ID : PRODUCTION_INTERSTITIAL_ID;
+export const NATIVE_AD_UNIT_ID = __DEV__ ? TEST_NATIVE_ID : PRODUCTION_NATIVE_ID;
+export const APP_OPEN_AD_UNIT_ID = __DEV__ ? TEST_APP_OPEN_ID : PRODUCTION_APP_OPEN_ID;
+export const NATIVE_ADS_ENABLED = NATIVE_AD_UNIT_ID.length > 0;
+export const APP_OPEN_ADS_ENABLED = APP_OPEN_AD_UNIT_ID.length > 0;
 
 export const AD_PLACEMENT_NAMES = [
   'weekend_planner_done',
@@ -64,12 +78,14 @@ export const AD_PLACEMENT_NAMES = [
 ] as const;
 
 export const FREQUENCY_CAPS = {
-  minSecondsSinceSessionStart: 180,
-  minEligibleActionsBeforeFirstInterstitial: 4,
-  minEligibleActionsBetweenInterstitials: 3,
-  minSecondsBetweenInterstitials: 8 * 60,
-  maxInterstitialsPerSession: 2,
-  maxInterstitialsPerRollingDay: 5,
+  minSecondsSinceSessionStart: 120,
+  minEligibleActionsBeforeFirstInterstitial: 3,
+  minEligibleActionsBetweenInterstitials: 2,
+  minSecondsBetweenInterstitials: 5 * 60,
+  maxInterstitialsPerSession: 3,
+  maxInterstitialsPerRollingDay: 7,
+  minSessionsBeforeAppOpen: 3,
+  minSecondsBetweenAppOpenAds: 4 * 60 * 60,
   bannerMinDisplaySeconds: 60,
   bannerRetryBackoffSeconds: [5, 15, 45, 120, 300],
   interstitialPreloadRetryBackoffSeconds: [10, 30, 90],

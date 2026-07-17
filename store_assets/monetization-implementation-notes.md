@@ -14,6 +14,8 @@ Internal reference for the AdMob architecture. See also `src/config/adsConfig.ts
 | `src/ads/BannerEligibilityController.ts` + `useSuppressBanner.ts` | Pub-sub suppression signal any sensitive screen registers with while mounted |
 | `src/ads/keyboardVisibility.ts` | Global keyboard-visible flag shared by banner + interstitial gating |
 | `src/ads/SafeAdContainer.tsx` | The one persistent banner slot, mounted inside `SafeBottomBar` |
+| `src/ads/InFeedNativeAd.tsx` | Clearly labeled native ad used after the fourth match/headline; collapses on load failure |
+| `src/ads/AppOpenAdManager.ts` | Preloads and caps app-open ads for returning users starting a new long session |
 | `src/ads/AdPreloadController.ts` | Single `InterstitialAd` instance lifecycle: load, retry with backoff, show |
 | `src/ads/AdFrequencyController.ts` | Pure frequency-cap decision function + persisted counters |
 | `src/ads/InterstitialEligibilityEngine.ts` | Combines frequency caps + ad readiness + "sensitive workflow" signal |
@@ -27,6 +29,10 @@ Internal reference for the AdMob architecture. See also `src/config/adsConfig.ts
 ## Why interstitials are placement-based, not screen-based
 
 `maybeShowInterstitial(placement)` is called after a user already sees the real result of their action (export done, share sheet closed, plan saved) — never before or during it. The frequency engine tracks `lastEligibleActionType` and refuses to show the same placement twice in a row, per the product spec's anti-repetition rule.
+
+## Native and app-open safeguards
+
+Native ads are placed inside long content feeds after the fourth organic item, carry both “Ad” and “Sponsored” labels, and never imitate a match or article. App-open ads are eligible only after three sessions and at least four hours since the previous app-open impression. Release builds keep both formats disabled until dedicated production unit IDs are supplied in `adsConfig.ts`; debug builds use Google's official test units.
 
 ## Extending
 

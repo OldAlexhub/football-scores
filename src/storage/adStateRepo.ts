@@ -22,10 +22,15 @@ export const DEFAULT_AD_FREQUENCY_STATE: AdFrequencyState = {
   lastEligibleActionType: null,
   bannerLastRequestedAt: null,
   bannerLastImpressionAt: null,
+  appSessionCount: 0,
+  lastAppOpenAdAt: null,
 };
 
 export function getAdFrequencyState(): AdFrequencyState {
-  return getJson(adStateStorage, FREQUENCY_KEY, DEFAULT_AD_FREQUENCY_STATE);
+  return {
+    ...DEFAULT_AD_FREQUENCY_STATE,
+    ...getJson(adStateStorage, FREQUENCY_KEY, DEFAULT_AD_FREQUENCY_STATE),
+  };
 }
 
 export function saveAdFrequencyState(state: AdFrequencyState): void {

@@ -158,6 +158,7 @@ class FootballDataOrgProvider implements FootballDataProvider {
           position: row.position,
           teamId: `football-data-org:${row.team?.id}`,
           teamName: row.team?.name ?? 'Unknown',
+          teamCrestUrl: row.team?.crest ?? null,
           played: row.playedGames ?? 0,
           wins: row.won ?? 0,
           draws: row.draw ?? 0,

@@ -3,6 +3,8 @@ import { initAdLifecycle, onAppForeground } from './AdLifecycleManager';
 import { initializeAdsOnce } from './AdService';
 import { preloadNext } from './AdPreloadController';
 import { startKeyboardVisibilityTracking } from './keyboardVisibility';
+import { maybeShowAppOpen, preloadAppOpen } from './AppOpenAdManager';
+import { subscribeAdsInitState } from './AdService';
 
 let bootstrapped = false;
 
@@ -18,7 +20,17 @@ export function AdProvider({ children }: { children: React.ReactNode }) {
     startKeyboardVisibilityTracking();
     initAdLifecycle();
     void initializeAdsOnce();
-    onAppForeground(() => preloadNext());
+    const unsubscribeReady = subscribeAdsInitState(state => {
+      if (state === 'ready') preloadAppOpen();
+    });
+    const unsubscribeForeground = onAppForeground(isNewSession => {
+      preloadNext();
+      if (isNewSession) void maybeShowAppOpen();
+    });
+    return () => {
+      unsubscribeReady();
+      unsubscribeForeground();
+    };
   }, []);
 
   return <>{children}</>;

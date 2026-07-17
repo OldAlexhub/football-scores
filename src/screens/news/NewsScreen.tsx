@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { SafeScrollView } from '../../components/SafeScrollView';
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { Card, EmptyState, ErrorState, LoadingState } from '../../components/ui';
+import { InFeedNativeAd } from '../../ads/InFeedNativeAd';
 import { fetchFootballNews } from '../../providers/newsProvider';
 import { usePreferences } from '../../state/PreferencesContext';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -86,9 +87,10 @@ export function NewsScreen() {
         )
       ) : (
         <SafeScrollView refreshing={refreshing} onRefresh={() => load(true)} contentBottomPadding={20}>
-          {filtered.map(article => (
-            <Pressable key={article.id} onPress={() => handleOpen(article.link)}>
-              <Card style={styles.articleCard}>
+          {filtered.map((article, index) => (
+            <React.Fragment key={article.id}>
+              <Pressable onPress={() => handleOpen(article.link)}>
+                <Card style={styles.articleCard}>
                 {article.imageUrl ? (
                   <Image source={{ uri: article.imageUrl }} style={styles.thumbnail} resizeMode="cover" />
                 ) : null}
@@ -108,8 +110,10 @@ export function NewsScreen() {
                     ) : null}
                   </View>
                 </View>
-              </Card>
-            </Pressable>
+                </Card>
+              </Pressable>
+              {index === 3 ? <View style={styles.nativeAdWrap}><InFeedNativeAd /></View> : null}
+            </React.Fragment>
           ))}
         </SafeScrollView>
       )}
@@ -132,4 +136,5 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   sourceLabel: { fontSize: 11, fontWeight: '700' },
   dateLabel: { fontSize: 11 },
+  nativeAdWrap: { marginHorizontal: 16, marginTop: 10 },
 });

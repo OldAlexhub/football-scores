@@ -62,7 +62,7 @@ export function TeamCrest({
         { backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.border },
       ]}
     >
-      <Text style={[styles.initials, { color: theme.colors.accent, fontSize: Math.max(10, size * 0.24) }]}> 
+      <Text style={[styles.initials, { color: theme.colors.accent, fontSize: Math.max(10, size * 0.24) }]}>
         {initialsFor(name, initials ?? undefined)}
       </Text>
     </View>

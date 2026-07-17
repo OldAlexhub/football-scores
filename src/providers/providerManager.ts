@@ -193,6 +193,20 @@ export async function resolveMatchById(matchId: string): Promise<Match | null> {
   return null;
 }
 
+export async function resolveTeamById(teamId: string): Promise<Team | null> {
+  const separatorIndex = teamId.indexOf(':');
+  if (separatorIndex === -1) return null;
+  const providerId = teamId.slice(0, separatorIndex) as ProviderId;
+  const providerTeamId = teamId.slice(separatorIndex + 1);
+  const provider = LIVE_PROVIDERS.find(item => item.id === providerId);
+  if (!provider?.isConfigured()) return null;
+  try {
+    return await provider.getTeam(providerTeamId);
+  } catch {
+    return null;
+  }
+}
+
 function providerIdPart(domainId: string): string {
   const separator = domainId.indexOf(':');
   return separator === -1 ? domainId : domainId.slice(separator + 1);

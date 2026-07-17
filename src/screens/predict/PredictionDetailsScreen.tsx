@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { SafeScrollView } from '../../components/SafeScrollView';
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { Card, PrimaryButton, SecondaryButton, SectionHeader } from '../../components/ui';
+import { AppIcon } from '../../components/AppIcon';
 import { usePredictions } from '../../state/PredictionsContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { shareImageUri } from '../../services/exportService';
@@ -47,9 +48,9 @@ export function PredictionDetailsScreen() {
               {prediction.homeScore} : {prediction.awayScore}
             </Text>
             <Text style={{ color: theme.colors.textSecondary }}>{t(`predict.${prediction.outcome}`)}</Text>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 8 }}>
-              {'★'.repeat(prediction.confidence)}{'☆'.repeat(5 - prediction.confidence)}
-            </Text>
+            <View style={styles.confidenceRow}>
+              {[1, 2, 3, 4, 5].map(value => <AppIcon key={value} name="star" size={17} color={value <= prediction.confidence ? theme.colors.accent : theme.colors.border} />)}
+            </View>
             {prediction.gradedAt ? (
               <Text style={{ color: prediction.isCorrectOutcome ? theme.colors.success : theme.colors.danger, marginTop: 8, fontWeight: '700' }}>
                 {prediction.pointsAwarded} pts
@@ -84,4 +85,5 @@ const styles = StyleSheet.create({
   predictedScore: { fontSize: 32, fontWeight: '800', marginVertical: 10 },
   section: { paddingHorizontal: 16, marginTop: 10 },
   actions: { paddingHorizontal: 16, marginTop: 20 },
+  confidenceRow: { flexDirection: 'row', gap: 4, marginTop: 9 },
 });
