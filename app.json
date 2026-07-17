@@ -1,4 +1,9 @@
 {
   "name": "FootballScores",
-  "displayName": "FootballScores"
+  "displayName": "Football Scores",
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-7831002909037560~7761656669",
+    "user_tracking_usage_description": "This identifier will be used to deliver personalized ads to you.",
+    "delay_app_measurement_init": true
+  }
 }

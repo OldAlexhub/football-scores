@@ -1,0 +1,30 @@
+Football Scores Today is a complete football companion for fans who want more than a bare scoreboard.
+
+Browse football scores today, football fixtures, and football schedules organized by league and by date — including today's matches, tomorrow's matches, and full weekend schedules. Follow your favorite competitions and teams, check available match scores and results, and dig into league tables with our football standings screen.
+
+BUILD YOUR OWN MATCHDAY
+My Matchday brings together everything you care about: favorite-team fixtures, competitions you follow, and matches you add manually. Set match reminders, mark matches to watch later, and let Football Scores Today warn you about clashing fixtures before you make plans.
+
+CLASH DETECTION AND WEEKEND PLANNING
+Two matches kicking off at once? Three? Our clash detector spots overlapping fixtures, estimates how much they overlap, and suggests a viewing order based on your priorities and favorite teams. The Weekend Planner lays out your whole Friday-to-Sunday schedule in one timeline.
+
+SPOILER SHIELD
+Not ready to see a result? Spoiler Shield hides scores, winners, and outcomes across matches, match details, My Matchday, notifications, predictions, and standings — until you choose to reveal them.
+
+PRIVATE PREDICTIONS — NOT GAMBLING
+Predict match outcomes and exact scores in a private prediction journal. Track your outcome accuracy, exact-score rate, streaks, and points over time. This is a personal record for fun, not a betting or gambling feature — there are no odds, no wagers, and no prizes.
+
+INSIGHTS
+Compare team form, review head-to-head history where available, and explore hypothetical table scenarios by entering possible scores for upcoming league matches.
+
+BUILT FOR REAL USE
+- No account or sign-up required
+- Works offline with your most recently loaded football data
+- English and full right-to-left Arabic support
+- Light, dark, and system themes
+- Local match reminders
+- Export predictions and matchday plans (CSV, JSON), plus calendar (.ics) export
+- Complete local backup and restore
+- Android home-screen widget for your next favorite match
+
+Football Scores Today is free to use and supported by advertising. It requires internet access to fetch football data and to display ads. It is not affiliated with FIFA, UEFA, any league, club, broadcaster, or national football association, and it does not offer betting odds, streaming, or guaranteed results.

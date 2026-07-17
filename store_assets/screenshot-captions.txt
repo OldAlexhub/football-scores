@@ -1,0 +1,10 @@
+1. Football scores and fixtures, organized by league and date
+2. Today's matches, tomorrow's matches, and full weekend schedules
+3. League standings with home and away splits
+4. My Matchday — your personal football viewing plan
+5. Clash detection for overlapping fixtures
+6. Spoiler Shield — hide results until you're ready
+7. Private predictions — track your accuracy and streaks over time
+8. Team comparison and table scenarios
+9. English and Arabic, with full right-to-left support
+10. Light, dark, and system themes

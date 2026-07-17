@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">مباريات كرة القدم</string>
+    <string name="widget_description">يعرض مباراة فريقك المفضل القادمة والعد التنازلي لموعد الانطلاق.</string>
+    <string name="widget_no_data_title">مباريات كرة القدم</string>
+    <string name="widget_no_data_subtitle">افتح التطبيق لتحميل المباريات</string>
+    <string name="widget_no_favorites_title">لا توجد مباريات مفضلة بعد</string>
+    <string name="widget_no_favorites_subtitle">أضف فرقًا مفضلة داخل التطبيق</string>
+    <string name="widget_time_not_confirmed">الوقت غير مؤكد</string>
+    <string name="widget_kickoff_now">الانطلاق الآن</string>
+    <string name="widget_countdown_hours">خلال %1$d س %2$d د · %3$s</string>
+    <string name="widget_countdown_minutes">خلال %1$d د · %2$s</string>
+    <string name="widget_clash_warning">يتعارض مع مباراة أخرى</string>
+    <string name="widget_reminder_set">تم ضبط التذكير</string>
+    <string name="widget_spoiler_protected">النتيجة محمية</string>
+</resources>

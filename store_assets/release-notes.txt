@@ -1,0 +1,17 @@
+Version 1.0.0
+
+First release of Football Scores Today.
+
+- Browse football scores, fixtures, and schedules by league and date
+- Follow favorite competitions and teams
+- League standings with home/away splits
+- My Matchday planner with clash detection and a weekend planner
+- Spoiler Shield to hide results until you're ready
+- Local match reminders
+- Private score predictions with statistics and streaks
+- Team comparison, recent form, and table scenarios
+- Export predictions and matchday plans, plus calendar (.ics) export
+- Complete local backup and restore
+- English and Arabic, with full right-to-left support
+- Light, dark, and system themes
+- Android home-screen widget

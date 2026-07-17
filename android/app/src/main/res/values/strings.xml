@@ -1,3 +1,15 @@
 <resources>
-    <string name="app_name">FootballScores</string>
+    <string name="app_name">Football Scores</string>
+    <string name="widget_description">Shows your next favorite football match and kickoff countdown.</string>
+    <string name="widget_no_data_title">Football Scores</string>
+    <string name="widget_no_data_subtitle">Open the app to load matches</string>
+    <string name="widget_no_favorites_title">No favorite matches yet</string>
+    <string name="widget_no_favorites_subtitle">Add favorite teams in the app</string>
+    <string name="widget_time_not_confirmed">Time not confirmed</string>
+    <string name="widget_kickoff_now">Kicking off now</string>
+    <string name="widget_countdown_hours">In %1$dh %2$dm · %3$s</string>
+    <string name="widget_countdown_minutes">In %1$dm · %2$s</string>
+    <string name="widget_clash_warning">Clashes with another match</string>
+    <string name="widget_reminder_set">Reminder set</string>
+    <string name="widget_spoiler_protected">Result protected</string>
 </resources>

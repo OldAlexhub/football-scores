@@ -72,18 +72,27 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Release signing is provisioned by release.py, which generates
+// android/keystores/release.keystore and android/signing.properties.
+// Neither file is committed to source control (see .gitignore).
+def signingPropsFile = rootProject.file('signing.properties')
+def signingProps = new Properties()
+if (signingPropsFile.exists()) {
+    signingProps.load(new FileInputStream(signingPropsFile))
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.footballscores"
+    namespace "com.oldalexhub.footballscores"
     defaultConfig {
-        applicationId "com.footballscores"
+        applicationId "com.oldalexhub.footballscores"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "1.0.0"
     }
     signingConfigs {
         debug {
@@ -92,15 +101,25 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (signingPropsFile.exists()) {
+                storeFile rootProject.file(signingProps.getProperty('RELEASE_STORE_FILE'))
+                storePassword signingProps.getProperty('RELEASE_STORE_PASSWORD')
+                keyAlias signingProps.getProperty('RELEASE_KEY_ALIAS')
+                keyPassword signingProps.getProperty('RELEASE_KEY_PASSWORD')
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // release.py generates android/signing.properties before invoking this build.
+            // Until then, release builds fall back to the debug keystore so local
+            // `./gradlew assembleRelease` never fails outright, but that output must
+            // never be uploaded to Google Play.
+            signingConfig signingPropsFile.exists() ? signingConfigs.release : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
