@@ -1,8 +1,8 @@
 # Privacy Policy — Football Scores Today
 
 **Developer:** Old Alex Hub
-**Effective date:** [insert publish date]
-**Contact:** [insert support email]
+**Effective date:** 07/17/2026
+**Contact:** info@oldalexhub.com
 
 Football Scores Today ("the app") is free to download and use, and is supported by advertising. This policy explains what happens on your device and what our third-party advertising service can access. It applies to the international app (Football Scores Today), its United States listing (Soccer Games Today), and its Arabic listing (مباريات ونتائج كرة القدم) — all three are the same application.
 

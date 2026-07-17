@@ -6,4 +6,14 @@
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
     </style>
 
+    <!-- Shown instantly on cold start via MainActivity's windowBackground, before the
+         JS bundle loads. MainActivity.onCreate() switches back to AppTheme once native
+         setup is done, matching the standard RN splash-screen pattern. -->
+    <style name="Theme.App.SplashScreen" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@drawable/launch_screen</item>
+        <item name="android:statusBarColor">@color/splash_background</item>
+        <item name="android:navigationBarColor">@color/splash_background</item>
+        <item name="android:windowFullscreen">false</item>
+    </style>
+
 </resources>
