@@ -1,8 +1,8 @@
 export const PRIVACY_POLICY_TEXT = `Football Scores Today — Privacy Policy
 
 Developer: Old Alex Hub
-Effective date: [insert publish date]
-Contact: [insert support email]
+Effective date: 07/17/2026
+Contact: info@oldalexhub.com
 
 Football Scores Today ("the app") is free to download and use, and is supported by advertising. This policy explains what happens on your device and what a third-party advertising service can access.
 
@@ -11,6 +11,9 @@ The app has no user accounts, no registration, no login, and no Old Alex Hub bac
 
 FOOTBALL DATA REQUESTS
 To show fixtures, results, and standings, the app makes network requests to third-party football data providers (OpenFootball, football-data.org, and optionally API-Football). These requests include only the data needed to fetch matches (such as a date range or competition id) — never your predictions, favorites, or device identifiers.
+
+FOOTBALL NEWS
+The News section fetches public RSS feeds directly from football publishers (currently BBC Sport, The Guardian, and Sky Sports) to show headlines, short snippets, and a link to the full article on the publisher's own website. The app does not host or reproduce full articles, sends no personal data with these requests, and opens the original article in your device's browser when you tap a headline.
 
 ADVERTISING (GOOGLE ADMOB)
 The app shows banner and interstitial advertisements through Google AdMob. AdMob and its partners may collect and use device identifiers (such as the Android advertising ID), approximate location, and app interaction data to serve and measure ads, subject to the consent choices you make through the Google User Messaging Platform (UMP) consent form shown where required (for example, in the EEA and UK). You can review or change your advertising consent at any time from More → Advertising & Privacy → Manage advertising choices.

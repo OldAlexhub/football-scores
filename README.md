@@ -186,6 +186,9 @@ See `store_assets/data-source-attribution.md`.
 - In debug, add your test device ID to `CONSENT_CONFIG.debugTestDeviceIds` in `adsConfig.ts` so the UMP form reliably appears for EEA/UK-simulated geography.
 - Never force debug geography in a release build.
 
+**No ads showing at all (banner never appears anywhere)**
+- This is almost always a UMP consent misconfiguration, not a code bug. If `requestInfoUpdate()` throws `Publisher misconfiguration: ... no form(s) configured for the input app ID`, it means no Privacy & messaging consent message has ever been created in the AdMob console for this app ID. The app correctly treats an unresolved consent state as "cannot request ads" and shows nothing — by design, since ads must never be requested before consent completes. **Fix:** in AdMob → Apps → Football Scores Today → Privacy & messaging, create at least one message (EEA and/or US states). This is a one-time account setup step done by the AdMob account owner, not something fixable in code. See `store_assets/admob-release-checklist.md`.
+
 **Test ads in release / production ads in debug**
 - This should be structurally impossible — `adsConfig.ts` picks IDs from `__DEV__` and throws in release if a test ID slipped through. If you see this, check for a stale Metro bundle or a hardcoded ID bypassing `adsConfig.ts`.
 

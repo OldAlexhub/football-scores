@@ -20,6 +20,10 @@ To show fixtures, results, and standings, the app makes network requests to thir
 
 These requests include only what's needed to fetch matches (such as a date range or competition id) — never your predictions, favorites, or device identifiers.
 
+## Football news
+
+The News section fetches public RSS feeds directly from football publishers (currently BBC Sport, The Guardian, and Sky Sports) to show headlines, short snippets, and a link to the full article on the publisher's own website. The app does not host or reproduce full articles, does not send any personal data with these requests, and opens the original article in your device's browser when you tap a headline.
+
 ## Advertising (Google AdMob)
 
 The app shows banner and interstitial advertisements through **Google AdMob**. AdMob and its advertising partners may collect and use device identifiers (such as the Android advertising ID), approximate location, and app interaction data to serve and measure ads, subject to the consent choices you make through the **Google User Messaging Platform (UMP)** consent form shown where required (for example, in the EEA and UK).

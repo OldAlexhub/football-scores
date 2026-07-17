@@ -17,6 +17,9 @@ Predict match outcomes and exact scores in a private prediction journal. Track y
 INSIGHTS
 Compare team form, review head-to-head history where available, and explore hypothetical table scenarios by entering possible scores for upcoming league matches.
 
+FOOTBALL NEWS
+Stay current with headlines from trusted football publishers — general match and club news plus a dedicated transfer news view — shown as headline, short summary, and a link to the full story on the publisher's own site.
+
 BUILT FOR REAL USE
 - No account or sign-up required
 - Works offline with your most recently loaded football data

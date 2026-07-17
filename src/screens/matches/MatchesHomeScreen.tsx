@@ -109,7 +109,12 @@ export function MatchesHomeScreen({ navigation }: Props) {
   return (
     <ScreenContainer>
       <View style={styles.headerBlock}>
-        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{t('matches.title')}</Text>
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{t('matches.title')}</Text>
+          <Pressable onPress={() => navigation.navigate('News')} hitSlop={8} style={styles.newsButton}>
+            <Text style={{ fontSize: 20 }}>📰</Text>
+          </Pressable>
+        </View>
         <TextInput
           placeholder={t('matches.searchTeamsOrCompetitions')}
           placeholderTextColor={theme.colors.textMuted}
@@ -210,7 +215,9 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
 
 const styles = StyleSheet.create({
   headerBlock: { paddingHorizontal: 16, paddingTop: 8 },
-  title: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  title: { fontSize: 22, fontWeight: '800' },
+  newsButton: { padding: 4 },
   search: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13 },
   chipsRow: { marginTop: 8, maxHeight: 40 },
   dateStrip: { marginTop: 8, maxHeight: 40 },

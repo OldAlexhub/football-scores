@@ -290,3 +290,23 @@ export interface CompleteBackup {
   predictions: Prediction[];
   preferences: UserPreferences;
 }
+
+export type NewsCategory = 'general' | 'transfer';
+
+/**
+ * A headline + short snippet pulled from a publisher's own public RSS feed,
+ * always paired with source attribution and an outbound link to the full
+ * article on the publisher's site — this app never reproduces full article
+ * text, which would be copyright infringement regardless of how the app
+ * itself is built.
+ */
+export interface NewsArticle {
+  id: string;
+  title: string;
+  snippet: string;
+  link: string;
+  sourceName: string;
+  imageUrl: string | null;
+  publishedAtUtc: string | null;
+  category: NewsCategory;
+}

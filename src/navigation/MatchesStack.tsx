@@ -5,6 +5,7 @@ import { CompetitionDetailsScreen } from '../screens/shared/CompetitionDetailsSc
 import { TeamDetailsScreen } from '../screens/shared/TeamDetailsScreen';
 import { MatchDetailsScreen } from '../screens/shared/MatchDetailsScreen';
 import { StandingsScreen } from '../screens/shared/StandingsScreen';
+import { NewsScreen } from '../screens/news/NewsScreen';
 import type { MatchesStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<MatchesStackParamList>();
@@ -17,6 +18,7 @@ export function MatchesStack() {
       <Stack.Screen name="TeamDetails" component={TeamDetailsScreen} options={{ title: '' }} />
       <Stack.Screen name="MatchDetails" component={MatchDetailsScreen} options={{ title: '' }} />
       <Stack.Screen name="Standings" component={StandingsScreen} options={{ title: '' }} />
+      <Stack.Screen name="News" component={NewsScreen} options={{ title: '' }} />
     </Stack.Navigator>
   );
 }

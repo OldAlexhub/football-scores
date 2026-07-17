@@ -14,8 +14,11 @@ An optional enrichment source when an API key is supplied. Provides richer match
 ## Cached data
 When no live provider request succeeds (offline, rate-limited, or a provider outage), the app falls back to the most recently successful response for that same query, clearly marked as cached/stale in the UI.
 
+## Football news (RSS headlines)
+The News section (Matches → 📰 and Insights → Football News) reads each publisher's own public RSS feed — currently BBC Sport, The Guardian Football, and Sky Sports — and shows only the headline, a short plain-text snippet, and a link back to the original article on the publisher's own site. **Football Scores Today never reproduces full article text.** Tapping a headline opens the source's website in the device's browser; the app does not host, cache, or redistribute article content itself beyond the short snippet needed to preview it, and every card carries visible source attribution. If a feed becomes unavailable or changes format, that source is silently skipped — the others still populate the list.
+
 ## Notes
 
-- Football Scores Today does not scrape football websites and does not use private/unofficial endpoints.
+- Football Scores Today does not scrape HTML from football websites and does not use private/unofficial endpoints. Match/competition data comes from the providers above; news headlines come only from each publisher's own public RSS feed, intended by the publisher for syndication.
 - Team crests, logos, and any other provider-supplied imagery are only used where the active provider's terms permit it, with an initials-based fallback always available.
 - Football Scores Today is not affiliated with any of the above providers' data being described as "official"; each is a data supplier, not a partner or affiliate of Old Alex Hub.

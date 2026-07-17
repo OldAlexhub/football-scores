@@ -12,6 +12,7 @@ import { useFavorites } from '../../state/FavoritesContext';
 import { usePreferences } from '../../state/PreferencesContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { fetchTeams } from '../../providers/providerManager';
+import { flagForCountry } from '../../utils/countryFlags';
 import type {
   ClockPreference, DefaultTab, LanguagePreference, ThemePreference,
 } from '../../types/domain';
@@ -23,7 +24,7 @@ type Step = typeof STEPS[number];
 // Shown by default in the teams step so it's never empty, before the user
 // has picked any favorite competitions — matches this app's "minimal input,
 // everything optional" onboarding philosophy.
-const DEFAULT_POPULAR_COMPETITION_CODES = ['en.1', 'es.1', 'de.1', 'it.1', 'fr.1', 'mls.1'];
+const DEFAULT_POPULAR_COMPETITION_CODES = ['en.1', 'es.1', 'de.1', 'it.1', 'fr.1', 'mls'];
 
 export function OnboardingScreen() {
   const navigation = useNavigation<any>();
@@ -102,7 +103,7 @@ export function OnboardingScreen() {
                   style={[styles.chip, { backgroundColor: favoriteCompetitionIds.has(c.id) ? theme.colors.accent : theme.colors.surfaceAlt }]}
                 >
                   <Text style={{ color: favoriteCompetitionIds.has(c.id) ? theme.colors.accentText : theme.colors.textSecondary, fontSize: 12 }}>
-                    {c.name} · {c.country}
+                    {flagForCountry(c.country)} {c.name} · {c.country}
                   </Text>
                 </Pressable>
               ))}

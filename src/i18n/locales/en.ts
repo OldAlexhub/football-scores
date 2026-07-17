@@ -368,4 +368,15 @@ export default {
     settingsTitle: 'Widget Settings',
     description: 'Add the Football Scores widget from your Android home screen to see your next favorite match at a glance.',
   },
+  news: {
+    title: 'Football News',
+    attribution: 'Headlines and summaries link to their original publisher. Football Scores Today does not host or reproduce full articles.',
+    filterAll: 'All',
+    filterGeneral: 'News',
+    filterTransfer: 'Transfers',
+    staleNotice: 'Showing the last successfully loaded headlines.',
+    someSourcesUnavailable: 'Some sources are temporarily unavailable: {{sources}}',
+    emptyBody: 'Could not load football news right now.',
+    emptyFilterTitle: 'No headlines in this category yet',
+  },
 } as const;

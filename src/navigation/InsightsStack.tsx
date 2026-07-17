@@ -6,6 +6,7 @@ import { TableScenarioScreen } from '../screens/insights/TableScenarioScreen';
 import { StandingsScreen } from '../screens/shared/StandingsScreen';
 import { TeamDetailsScreen } from '../screens/shared/TeamDetailsScreen';
 import { MatchDetailsScreen } from '../screens/shared/MatchDetailsScreen';
+import { NewsScreen } from '../screens/news/NewsScreen';
 import type { InsightsStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<InsightsStackParamList>();
@@ -19,6 +20,7 @@ export function InsightsStack() {
       <Stack.Screen name="MatchDetails" component={MatchDetailsScreen} options={{ title: '' }} />
       <Stack.Screen name="TeamComparison" component={TeamComparisonScreen} options={{ title: '' }} />
       <Stack.Screen name="TableScenario" component={TableScenarioScreen} options={{ title: '' }} />
+      <Stack.Screen name="News" component={NewsScreen} options={{ title: '' }} />
     </Stack.Navigator>
   );
 }

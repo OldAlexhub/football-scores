@@ -12,6 +12,7 @@ export type MatchesStackParamList = {
   TeamDetails: { teamId: string };
   MatchDetails: MatchDetailsParams;
   Standings: { competitionId: string };
+  News: undefined;
 };
 
 export type MatchdayStackParamList = {
@@ -38,6 +39,7 @@ export type InsightsStackParamList = {
   MatchDetails: MatchDetailsParams;
   TeamComparison: { competitionId: string } | undefined;
   TableScenario: { competitionId: string };
+  News: undefined;
 };
 
 export type MoreStackParamList = {

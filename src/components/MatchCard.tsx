@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '../theme/ThemeProvider';
 import { usePreferences } from '../state/PreferencesContext';
 import { formatKickoffTime } from '../utils/dates';
+import { flagForCountry } from '../utils/countryFlags';
 import type { Match } from '../types/domain';
 import { Badge } from './ui';
 
@@ -64,7 +65,7 @@ export function MatchCard({
     >
       <View style={styles.headerRow}>
         <Text style={[styles.competition, { color: theme.colors.textMuted }]} numberOfLines={1}>
-          {match.competitionName}
+          {flagForCountry(match.country)} {match.competitionName}
         </Text>
         <Badge
           label={t(`matchStatus.${match.status}`)}
