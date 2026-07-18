@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import {
+  BannerAd,
+  BannerAdSize,
   NativeAd,
   NativeAdView,
   NativeAsset,
@@ -8,7 +10,12 @@ import {
   NativeMediaAspectRatio,
   NativeMediaView,
 } from 'react-native-google-mobile-ads';
-import { NATIVE_ADS_ENABLED, NATIVE_AD_UNIT_ID } from '../config/adsConfig';
+import {
+  BANNER_AD_UNIT_ID,
+  FREQUENCY_CAPS,
+  NATIVE_ADS_ENABLED,
+  NATIVE_AD_UNIT_ID,
+} from '../config/adsConfig';
 import { useTheme } from '../theme/ThemeProvider';
 import { AppIcon } from '../components/AppIcon';
 import { getAdsInitState, subscribeAdsInitState } from './AdService';
@@ -16,9 +23,25 @@ import { getAdsInitState, subscribeAdsInitState } from './AdService';
 export function InFeedNativeAd({ compact = false }: { compact?: boolean }) {
   const theme = useTheme();
   const [nativeAd, setNativeAd] = useState<NativeAd | null>(null);
+  const [adsReady, setAdsReady] = useState(getAdsInitState() === 'ready');
+  const [bannerFailed, setBannerFailed] = useState(false);
+  const [bannerAttempt, setBannerAttempt] = useState(0);
+
+  useEffect(() => subscribeAdsInitState(state => setAdsReady(state === 'ready')), []);
 
   useEffect(() => {
-    if (!NATIVE_ADS_ENABLED) return;
+    if (!bannerFailed) return;
+    const delays = FREQUENCY_CAPS.bannerRetryBackoffSeconds;
+    const delay = delays[Math.min(bannerAttempt, delays.length - 1)] * 1000;
+    const timer = setTimeout(() => {
+      setBannerFailed(false);
+      setBannerAttempt(value => value + 1);
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [bannerAttempt, bannerFailed]);
+
+  useEffect(() => {
+    if (!NATIVE_ADS_ENABLED || !adsReady) return;
     let mounted = true;
     let loadedAd: NativeAd | null = null;
     const load = async () => {
@@ -37,15 +60,37 @@ export function InFeedNativeAd({ compact = false }: { compact?: boolean }) {
         // Empty ad slots collapse without disturbing content.
       }
     };
-    const unsubscribe = getAdsInitState() === 'ready'
-      ? (() => { void load(); return () => undefined; })()
-      : subscribeAdsInitState(state => { if (state === 'ready' && !loadedAd) void load(); });
+    void load();
     return () => {
       mounted = false;
-      unsubscribe();
       loadedAd?.destroy();
     };
-  }, []);
+  }, [adsReady]);
+
+  if (!adsReady) return null;
+
+  // Until a dedicated production native unit is created, keep this valuable
+  // in-feed placement monetized with an inline adaptive banner. Debug still
+  // exercises the richer native implementation with Google's test unit.
+  if (!NATIVE_ADS_ENABLED) {
+    if (bannerFailed) return null;
+    return (
+      <View
+        style={[
+          styles.inlineBanner,
+          { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.border },
+        ]}
+      >
+        <BannerAd
+          key={`inline-banner-${bannerAttempt}`}
+          unitId={BANNER_AD_UNIT_ID}
+          size={BannerAdSize.INLINE_ADAPTIVE_BANNER}
+          requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+          onAdFailedToLoad={() => setBannerFailed(true)}
+        />
+      </View>
+    );
+  }
 
   if (!nativeAd) return null;
 
@@ -97,6 +142,7 @@ export function InFeedNativeAd({ compact = false }: { compact?: boolean }) {
 }
 
 const styles = StyleSheet.create({
+  inlineBanner: { minHeight: 50, marginBottom: 12, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   card: { marginBottom: 12, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, padding: 12, overflow: 'hidden' },
   compactCard: { padding: 12 },
   adHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },

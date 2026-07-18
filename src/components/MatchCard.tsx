@@ -44,22 +44,17 @@ function Action({
 
 export function MatchCard({
   match,
-  spoilerShielded,
-  isFavorite,
-  hasReminder,
-  hasPrediction,
+  spoilerShielded = false,
+  hasReminder = false,
   modelPrediction,
   onPress,
-  onToggleFavorite,
   onToggleReminder,
-  onAddToMatchday,
-  onToggleSpoilerShield,
 }: {
   match: Match;
-  spoilerShielded: boolean;
-  isFavorite: boolean;
-  hasReminder: boolean;
-  hasPrediction: boolean;
+  spoilerShielded?: boolean;
+  isFavorite?: boolean;
+  hasReminder?: boolean;
+  hasPrediction?: boolean;
   modelPrediction?: MatchPrediction | null;
   onPress: () => void;
   onToggleFavorite?: () => void;
@@ -140,12 +135,12 @@ export function MatchCard({
           ) : (
             <>
               <Text style={[styles.timeText, { color: theme.colors.textPrimary }]}>{timeLabel}</Text>
-              <Text style={[styles.kickoffLabel, { color: theme.colors.textMuted }]}>{t('matchStatus.scheduled')}</Text>
+              <Text style={[styles.kickoffLabel, { color: statusColor }]}>{t(`matchStatus.${match.status}`)}</Text>
               {modelPrediction ? (
                 <View style={[styles.modelBadge, { backgroundColor: theme.colors.accentSoft }]}>
                   <AppIcon name="spark" size={11} color={theme.colors.accent} />
                   <Text style={[styles.modelText, { color: theme.colors.accent }]}>
-                    {modelPrediction.predictedHomeGoals}-{modelPrediction.predictedAwayGoals}
+                    {t('matches.predictionShort', { score: `${modelPrediction.predictedHomeGoals}-${modelPrediction.predictedAwayGoals}` })}
                   </Text>
                 </View>
               ) : null}
@@ -171,20 +166,14 @@ export function MatchCard({
         </View>
       </View>
 
-      {(onToggleFavorite || onToggleReminder || onAddToMatchday || onToggleSpoilerShield || hasPrediction) ? (
+      {onToggleReminder ? (
         <View style={[styles.actionsRow, { borderTopColor: theme.colors.border }]}>
           <View style={styles.actionsLeft}>
-            {onToggleFavorite ? <Action icon="star" label="Favorite" active={isFavorite} onPress={onToggleFavorite} /> : null}
-            {onToggleReminder ? <Action icon="bell" label={t('matches.setReminder')} active={hasReminder} onPress={onToggleReminder} /> : null}
-            {onAddToMatchday ? <Action icon="bookmark" label={t('matches.addToMatchday')} onPress={onAddToMatchday} /> : null}
-            {onToggleSpoilerShield ? <Action icon="shield" label={t('spoiler.title')} active={spoilerShielded} onPress={onToggleSpoilerShield} /> : null}
+            <Action icon="bell" label={t('matches.setReminder')} active={hasReminder} onPress={onToggleReminder} />
+            <Text style={[styles.reminderLabel, { color: hasReminder ? theme.colors.accent : theme.colors.textMuted }]}>
+              {hasReminder ? t('matches.cancelReminder') : t('matches.setReminder')}
+            </Text>
           </View>
-          {hasPrediction ? (
-            <View style={[styles.predictionBadge, { backgroundColor: theme.colors.accentSoft }]}>
-              <AppIcon name="target" size={15} color={theme.colors.accent} />
-              <Text style={[styles.predictionText, { color: theme.colors.accent }]}>{t('predict.title')}</Text>
-            </View>
-          ) : null}
         </View>
       ) : null}
     </Pressable>
@@ -228,6 +217,7 @@ const styles = StyleSheet.create({
   },
   actionsLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   actionButton: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  reminderLabel: { fontSize: 10, fontWeight: '800' },
   predictionBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, height: 28, borderRadius: 14 },
   predictionText: { fontSize: 10, fontWeight: '800' },
 });

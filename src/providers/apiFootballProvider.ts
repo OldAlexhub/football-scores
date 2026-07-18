@@ -65,6 +65,7 @@ function mapMatch(raw: any): Match {
   const homeName = raw.teams?.home?.name ?? 'Unknown';
   const awayName = raw.teams?.away?.name ?? 'Unknown';
   const status = statusFromApi(raw.fixture?.status?.short);
+  const statusShort = raw.fixture?.status?.short;
   const isKnockout = !!raw.league?.round && /final|semi|quarter|knockout|leg/i.test(raw.league.round);
 
   return {
@@ -73,6 +74,7 @@ function mapMatch(raw: any): Match {
     providerMatchId: String(raw.fixture?.id),
     competitionId: `api-football:${raw.league?.id}`,
     competitionName: raw.league?.name ?? 'Unknown competition',
+    competitionEmblemUrl: raw.league?.logo ?? null,
     country: raw.league?.country ?? null,
     season: raw.league?.season ? String(raw.league.season) : null,
     stage: raw.league?.round ?? null,
@@ -87,8 +89,11 @@ function mapMatch(raw: any): Match {
     awayTeamInitials: initialsFromName(awayName),
     awayTeamCrestUrl: raw.teams?.away?.logo ?? null,
     kickoffUtc: raw.fixture?.date ?? null,
-    kickoffUnknown: !raw.fixture?.date,
+    kickoffUnknown: !raw.fixture?.date || statusShort === 'TBD',
     status,
+    statusDetail: raw.fixture?.status?.long ?? null,
+    elapsedMinutes: numberValue(raw.fixture?.status?.elapsed),
+    injuryTimeMinutes: numberValue(raw.fixture?.status?.extra),
     halfTimeScore: raw.score?.halftime && (raw.score.halftime.home != null || raw.score.halftime.away != null)
       ? { home: raw.score.halftime.home ?? null, away: raw.score.halftime.away ?? null }
       : null,
@@ -104,9 +109,17 @@ function mapMatch(raw: any): Match {
     currentScore: raw.goals && (raw.goals.home != null || raw.goals.away != null)
       ? { home: raw.goals.home ?? null, away: raw.goals.away ?? null }
       : null,
-    winner: null,
+    winner: raw.teams?.home?.winner === true
+      ? 'home'
+      : raw.teams?.away?.winner === true
+        ? 'away'
+        : raw.teams?.home?.winner === false && raw.teams?.away?.winner === false
+          ? 'draw'
+          : null,
     venue: raw.fixture?.venue?.name ?? null,
-    lastProviderUpdateUtc: raw.fixture?.date ?? null,
+    referee: raw.fixture?.referee ?? null,
+    attendance: numberValue(raw.fixture?.attendance),
+    lastProviderUpdateUtc: new Date().toISOString(),
     isKnockout,
     extraTimePossible: isKnockout,
     attribution: 'API-Football',

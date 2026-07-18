@@ -10,7 +10,7 @@ WHAT THE APP DOES NOT DO
 The app has no user accounts, no registration, no login, and no Old Alex Hub backend server. Your favorites, predictions, matchday plans, and reminders are stored only in local storage on your device. Nothing you create in the app is uploaded to Old Alex Hub.
 
 FOOTBALL DATA REQUESTS
-To show fixtures, results, and standings, the app makes network requests to third-party football data providers (OpenFootball, football-data.org, and optionally API-Football). These requests include only the data needed to fetch matches (such as a date range or competition id) — never your predictions, favorites, or device identifiers.
+To show fixtures, results, standings, club crests, and match analysis, the app makes network requests to third-party football data providers (OpenFootball, football-data.org, API-Football when configured by the publisher, TheSportsDB, and ESPN). These requests include only the data needed to fetch football information, such as a date range, competition id, event, or team name. They do not include device identifiers.
 
 FOOTBALL NEWS
 The News section fetches public RSS feeds directly from football publishers (currently BBC Sport, The Guardian, and Sky Sports) to show headlines, short snippets, and a link to the full article on the publisher's own website. The app does not host or reproduce full articles, sends no personal data with these requests, and opens the original article in your device's browser when you tap a headline.

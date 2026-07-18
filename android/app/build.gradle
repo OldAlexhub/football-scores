@@ -113,6 +113,10 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            // Keep QA/test-ad builds installed beside the signed production
+            // app so verification never replaces production data or traffic.
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
         }
         release {
             // release.py generates android/signing.properties before invoking this build.

@@ -482,7 +482,7 @@ def print_summary(context, check_env_only=False):
     print(f"Privacy policy:      {'present' if context.get('supporting', {}).get('Privacy policy') else 'MISSING'}")
     print(f"README:              {'present' if context.get('supporting', {}).get('README') else 'MISSING'}")
     print(f"Signing notes:       written")
-    print(f"Football providers:  OpenFootball (always on), football-data.org + API-Football (key-dependent)")
+    print("Football providers:  OpenFootball + TheSportsDB + ESPN analysis (keyless), football-data.org + API-Football (key-dependent)")
     print(f"AdMob app ID:        OK" if context.get("ids_ok") else "AdMob app ID:        CHECK WARNINGS")
     print(f"Banner ID:           OK" if context.get("ids_ok") else "Banner ID:           CHECK WARNINGS")
     print(f"Interstitial ID:     OK" if context.get("ids_ok") else "Interstitial ID:     CHECK WARNINGS")

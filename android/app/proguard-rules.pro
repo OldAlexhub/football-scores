@@ -8,3 +8,6 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
+# Keep Google UMP internals in minified release builds. This is required by
+# react-native-google-mobile-ads for the consent bridge to remain callable.
+-keep class com.google.android.gms.internal.consent_sdk.** { *; }

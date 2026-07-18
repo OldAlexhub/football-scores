@@ -6,6 +6,7 @@ export type AdsInitState = 'idle' | 'initializing' | 'ready' | 'blocked' | 'fail
 
 let state: AdsInitState = 'idle';
 let initPromise: Promise<AdsInitState> | null = null;
+let lastInitAttemptAt = 0;
 const listeners = new Set<(state: AdsInitState) => void>();
 
 function setState(next: AdsInitState): void {
@@ -38,6 +39,7 @@ export async function initializeAdsOnce(): Promise<AdsInitState> {
   }
 
   initPromise = (async () => {
+    lastInitAttemptAt = Date.now();
     setState('initializing');
     try {
       const consent = await requestConsentAndGate();
@@ -61,4 +63,16 @@ export async function initializeAdsOnce(): Promise<AdsInitState> {
   })();
 
   return initPromise;
+}
+
+/**
+ * Retries a consent/SDK failure after a cooldown. This lets ad serving
+ * recover without an app restart when consent networking or publisher
+ * configuration becomes available while the process remains alive.
+ */
+export async function retryAdsInitializationIfNeeded(force = false): Promise<AdsInitState> {
+  if (state === 'ready' || state === 'initializing') return state;
+  if (!force && Date.now() - lastInitAttemptAt < 60_000) return state;
+  initPromise = null;
+  return initializeAdsOnce();
 }

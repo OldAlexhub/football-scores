@@ -25,7 +25,7 @@ class CachedProvider implements FootballDataProvider {
   }
 
   async getMatches(query: MatchesQuery): Promise<Match[]> {
-    const cached = await readCache<Match[]>(cacheKeys.matches(query.dateFromUtc, query.dateToUtc));
+    const cached = await readCache<Match[]>(cacheKeys.matches(query.dateFromUtc, query.dateToUtc, query.competitionProviderIds));
     return cached?.payload ?? [];
   }
 

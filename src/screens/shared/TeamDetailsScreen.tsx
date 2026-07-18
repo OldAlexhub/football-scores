@@ -1,15 +1,12 @@
 import { useRoute } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { AppIcon } from '../../components/AppIcon';
 import { TeamCrest } from '../../components/TeamCrest';
 import { SafeScrollView } from '../../components/SafeScrollView';
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { Card } from '../../components/ui';
 import { fetchForm, resolveTeamById } from '../../providers/providerManager';
-import { useFavorites } from '../../state/FavoritesContext';
-import { usePredictions } from '../../state/PredictionsContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import type { Team } from '../../types/domain';
 
@@ -18,8 +15,6 @@ export function TeamDetailsScreen() {
   const { teamId } = route.params as { teamId: string };
   const { t } = useTranslation();
   const theme = useTheme();
-  const { favoriteTeamIds, toggleTeam } = useFavorites();
-  const { predictions } = usePredictions();
   const [team, setTeam] = useState<Team | null>(null);
   const [form, setForm] = useState<{ lastFive: string[]; homeForm: string[]; awayForm: string[] }>({ lastFive: [], homeForm: [], awayForm: [] });
   const providerTeamId = useMemo(() => teamId.split(':').slice(1).join(':'), [teamId]);
@@ -35,7 +30,6 @@ export function TeamDetailsScreen() {
     return () => { mounted = false; };
   }, [providerTeamId, teamId]);
 
-  const relatedPredictions = predictions.filter(item => item.homeTeamId === teamId || item.awayTeamId === teamId);
   const teamName = team?.name ?? fallbackName;
 
   return (
@@ -45,10 +39,6 @@ export function TeamDetailsScreen() {
           <TeamCrest uri={team?.crestUrl} name={teamName} initials={team?.initials} size={78} />
           <Text style={[styles.name, { color: theme.colors.textPrimary }]}>{teamName}</Text>
           {team?.shortName ? <Text style={[styles.shortName, { color: theme.colors.textMuted }]}>{team.shortName}</Text> : null}
-          <Pressable onPress={() => toggleTeam(teamId)} style={[styles.favoriteButton, { backgroundColor: theme.colors.accentSoft }]}>
-            <AppIcon name="star" size={20} color={favoriteTeamIds.has(teamId) ? theme.colors.accent : theme.colors.textMuted} />
-            <Text style={[styles.favoriteLabel, { color: theme.colors.accent }]}>{t('common.save')}</Text>
-          </Pressable>
         </View>
 
         <Card style={styles.section}>
@@ -61,15 +51,6 @@ export function TeamDetailsScreen() {
           <FormPills form={form.awayForm} />
         </Card>
 
-        <Card style={styles.section}>
-          <Heading title={t('teamDetails.predictionHistory')} />
-          {relatedPredictions.length === 0 ? <Text style={[styles.empty, { color: theme.colors.textMuted }]}>{t('predict.emptyBody')}</Text> : relatedPredictions.slice(0, 10).map(item => (
-            <View key={item.id} style={[styles.predictionRow, { borderBottomColor: theme.colors.border }]}>
-              <Text style={[styles.predictionTeams, { color: theme.colors.textPrimary }]} numberOfLines={1}>{item.homeTeamName}  {item.homeScore}-{item.awayScore}  {item.awayTeamName}</Text>
-              <Text style={[styles.predictionPoints, { color: theme.colors.accent }]}>{item.pointsAwarded ?? t('predict.pendingPredictions')}</Text>
-            </View>
-          ))}
-        </Card>
       </SafeScrollView>
     </ScreenContainer>
   );
@@ -97,8 +78,6 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingTop: 13, alignItems: 'center' },
   name: { fontSize: 23, fontWeight: '900', textAlign: 'center', marginTop: 10 },
   shortName: { fontSize: 11, marginTop: 3 },
-  favoriteButton: { minHeight: 40, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 15, marginTop: 12 },
-  favoriteLabel: { fontSize: 12, fontWeight: '900' },
   section: { marginHorizontal: 16, marginTop: 14 },
   heading: { fontSize: 16, fontWeight: '900', marginBottom: 11 },
   compactHeading: { fontSize: 12, marginTop: 14, marginBottom: 8 },

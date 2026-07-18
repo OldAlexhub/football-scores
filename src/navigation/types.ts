@@ -64,6 +64,7 @@ export type MainTabParamList = {
   MatchdayTab: NavigatorScreenParams<MatchdayStackParamList>;
   PredictTab: NavigatorScreenParams<PredictStackParamList>;
   InsightsTab: NavigatorScreenParams<InsightsStackParamList>;
+  NewsTab: undefined;
   MoreTab: NavigatorScreenParams<MoreStackParamList>;
 };
 

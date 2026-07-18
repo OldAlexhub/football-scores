@@ -5,6 +5,8 @@ import { cacheKeys, CACHE_TTL_MS } from './cacheKeys';
 import { cachedProvider } from './cachedProvider';
 import { footballDataOrgProvider } from './footballDataOrgProvider';
 import { openFootballProvider } from './openFootballProvider';
+import { theSportsDbProvider } from './theSportsDbProvider';
+import { espnProvider } from './espnProvider';
 import type { FootballDataProvider, FormResult, HeadToHeadResult, MatchesQuery } from './types';
 import { ProviderError } from './types';
 
@@ -12,6 +14,8 @@ export const LIVE_PROVIDERS: FootballDataProvider[] = [
   apiFootballProvider,
   footballDataOrgProvider,
   openFootballProvider,
+  theSportsDbProvider,
+  espnProvider,
 ];
 
 export interface ProviderHealth {
@@ -25,6 +29,8 @@ const health: Record<ProviderId, ProviderHealth> = {
   'football-data-org': { providerId: 'football-data-org', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
   'api-football': { providerId: 'api-football', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
   openfootball: { providerId: 'openfootball', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
+  thesportsdb: { providerId: 'thesportsdb', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
+  espn: { providerId: 'espn', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
   cached: { providerId: 'cached', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
 };
 
@@ -49,7 +55,7 @@ export interface SourcedResult<T> {
   errorMessage: string | null;
 }
 
-const MANUAL_REFRESH_COOLDOWN_MS = 20 * 1000;
+const MANUAL_REFRESH_COOLDOWN_MS = 60 * 1000;
 let lastManualRefreshAt = 0;
 
 export function canManualRefresh(): boolean {
@@ -72,9 +78,23 @@ async function withFallback<T>(
   attempt: (provider: FootballDataProvider) => Promise<T>,
   isEmpty: (result: T) => boolean,
   cacheKey: string,
-  ttlMs: number,
+  ttlMs: number | ((result: T) => number),
+  bypassFreshCache = false,
 ): Promise<SourcedResult<T>> {
   let lastError: string | null = null;
+
+  if (!bypassFreshCache) {
+    const cached = await readCache<T>(cacheKey);
+    if (cached && !cached.isStale && !isEmpty(cached.payload)) {
+      return {
+        data: cached.payload,
+        providerId: cached.providerId,
+        isFromCache: true,
+        isStale: false,
+        errorMessage: null,
+      };
+    }
+  }
 
   for (const provider of LIVE_PROVIDERS) {
     if (!provider.capabilities[capability] || !provider.isConfigured()) {
@@ -86,7 +106,7 @@ async function withFallback<T>(
         continue;
       }
       recordSuccess(provider.id);
-      await writeCache(cacheKey, provider.id, result, ttlMs);
+      await writeCache(cacheKey, provider.id, result, typeof ttlMs === 'function' ? ttlMs(result) : ttlMs);
       return { data: result, providerId: provider.id, isFromCache: false, isStale: false, errorMessage: null };
     } catch (error) {
       const message = error instanceof ProviderError ? error.message : 'Unknown provider error';
@@ -110,12 +130,19 @@ async function withFallback<T>(
 }
 
 export async function fetchMatches(query: MatchesQuery): Promise<SourcedResult<Match[]>> {
+  const requestedDay = query.dateFromUtc.slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
   return withFallback(
     'schedules',
     provider => provider.getMatches(query),
     result => result.length === 0,
-    cacheKeys.matches(query.dateFromUtc, query.dateToUtc),
-    CACHE_TTL_MS.upcomingFixtures,
+    cacheKeys.matches(query.dateFromUtc, query.dateToUtc, query.competitionProviderIds),
+    result => result.some(match => match.status === 'live' || match.status === 'half_time')
+      ? CACHE_TTL_MS.liveFixtures
+      : requestedDay === today
+        ? CACHE_TTL_MS.todayFixtures
+        : CACHE_TTL_MS.upcomingFixtures,
+    query.forceRefresh === true,
   );
 }
 
@@ -278,14 +305,12 @@ export async function fetchMatchPrediction(match: Match): Promise<MatchPredictio
 
   if (provider.getPrediction) {
     try {
-      const prediction = await provider.getPrediction(match.providerMatchId);
+      const prediction = await provider.getPrediction(match.providerMatchId, match);
       if (prediction) {
         await writeCache(cacheKey, provider.id, prediction, CACHE_TTL_MS.prediction);
         return prediction;
       }
-    } catch {
-      if (cached) return cached.payload;
-    }
+    } catch { /* Try the cross-provider statistical fallback below. */ }
   }
 
   try {
@@ -295,11 +320,25 @@ export async function fetchMatchPrediction(match: Match): Promise<MatchPredictio
       provider.getHeadToHead(providerIdPart(match.homeTeamId), providerIdPart(match.awayTeamId)),
     ]);
     const prediction = statisticalPrediction(match, homeForm, awayForm, headToHead);
-    if (prediction) await writeCache(cacheKey, provider.id, prediction, CACHE_TTL_MS.prediction);
-    return prediction ?? cached?.payload ?? null;
-  } catch {
-    return cached?.payload ?? null;
+    if (prediction) {
+      await writeCache(cacheKey, provider.id, prediction, CACHE_TTL_MS.prediction);
+      return prediction;
+    }
+  } catch { /* Try ESPN's keyless recent-form feed next. */ }
+
+  if (provider.id !== 'espn' && espnProvider.getPrediction) {
+    try {
+      const prediction = await espnProvider.getPrediction('', match);
+      if (prediction) {
+        await writeCache(cacheKey, espnProvider.id, prediction, CACHE_TTL_MS.prediction);
+        recordSuccess(espnProvider.id);
+        return prediction;
+      }
+    } catch (error) {
+      recordFailure(espnProvider.id, error instanceof Error ? error.message : 'Prediction unavailable');
+    }
   }
+  return cached?.payload ?? null;
 }
 
 function minimalFinishedAnalysis(match: Match): MatchAnalysis | null {
@@ -327,16 +366,25 @@ export async function fetchMatchAnalysis(match: Match): Promise<MatchAnalysis | 
   const cacheKey = cacheKeys.analysis(match.id);
   const cached = await readCache<MatchAnalysis>(cacheKey);
   if (cached && !cached.isStale) return cached.payload;
-  const provider = LIVE_PROVIDERS.find(item => item.id === match.providerId);
-  if (provider?.isConfigured() && provider.getMatchAnalysis) {
+  const sourceProvider = LIVE_PROVIDERS.find(item => item.id === match.providerId);
+  const providers = [sourceProvider, espnProvider]
+    .filter((provider, index, list): provider is FootballDataProvider => !!provider && list.indexOf(provider) === index)
+    .filter(provider => provider.isConfigured() && !!provider.getMatchAnalysis);
+  for (const provider of providers) {
     try {
-      const analysis = await provider.getMatchAnalysis(match.providerMatchId);
+      const analysis = await provider.getMatchAnalysis?.(provider.id === match.providerId ? match.providerMatchId : '', match);
       if (analysis) {
-        await writeCache(cacheKey, provider.id, analysis, CACHE_TTL_MS.matchAnalysis);
+        const ttl = match.status === 'live' || match.status === 'half_time'
+          ? CACHE_TTL_MS.liveMatchAnalysis
+          : match.status === 'scheduled'
+            ? CACHE_TTL_MS.preMatchAnalysis
+            : CACHE_TTL_MS.matchAnalysis;
+        await writeCache(cacheKey, provider.id, analysis, ttl);
+        recordSuccess(provider.id);
         return analysis;
       }
-    } catch {
-      if (cached) return cached.payload;
+    } catch (error) {
+      recordFailure(provider.id, error instanceof Error ? error.message : 'Analysis unavailable');
     }
   }
   return cached?.payload ?? minimalFinishedAnalysis(match);

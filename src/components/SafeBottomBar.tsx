@@ -12,6 +12,7 @@ const TAB_ICONS: Record<string, AppIconName> = {
   MatchdayTab: 'calendar',
   PredictTab: 'target',
   InsightsTab: 'chart',
+  NewsTab: 'news',
   MoreTab: 'menu',
 };
 
@@ -20,6 +21,7 @@ const TAB_LABEL_KEYS: Record<string, string> = {
   MatchdayTab: 'tabs.matchday',
   PredictTab: 'tabs.predict',
   InsightsTab: 'tabs.insights',
+  NewsTab: 'news.title',
   MoreTab: 'tabs.more',
 };
 

@@ -29,9 +29,9 @@ export const linkingConfig = {
     screens: {
       MainTabs: {
         screens: {
-          MatchdayTab: {
+          MatchesTab: {
             screens: {
-              MatchdayHome: 'matchday',
+              MatchesHome: 'matches',
               MatchDetails: 'match/:matchId',
             },
           },

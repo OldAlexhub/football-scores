@@ -7,6 +7,8 @@
 
 export type ProviderId =
   | 'openfootball'
+  | 'thesportsdb'
+  | 'espn'
   | 'football-data-org'
   | 'api-football'
   | 'cached';
@@ -86,6 +88,7 @@ export interface Match {
   providerMatchId: string;
   competitionId: string;
   competitionName: string;
+  competitionEmblemUrl?: string | null;
   country: string | null;
   season: string | null;
   stage: string | null;
@@ -102,6 +105,9 @@ export interface Match {
   kickoffUtc: string | null;
   kickoffUnknown: boolean;
   status: MatchStatus;
+  statusDetail?: string | null;
+  elapsedMinutes?: number | null;
+  injuryTimeMinutes?: number | null;
   halfTimeScore: MatchScore | null;
   fullTimeScore: MatchScore | null;
   extraTimeScore: MatchScore | null;
@@ -109,6 +115,8 @@ export interface Match {
   currentScore: MatchScore | null;
   winner: 'home' | 'away' | 'draw' | null;
   venue: string | null;
+  referee?: string | null;
+  attendance?: number | null;
   lastProviderUpdateUtc: string | null;
   isKnockout: boolean;
   extraTimePossible: boolean;
@@ -324,6 +332,8 @@ export interface AdSessionState {
 }
 
 export type AdPlacementName =
+  | 'match_detail_open'
+  | 'news_article_open'
   | 'weekend_planner_done'
   | 'weekend_planner_share'
   | 'prediction_save_milestone'

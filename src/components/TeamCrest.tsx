@@ -1,19 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Image, StyleSheet, View } from 'react-native';
 import { SvgUri } from 'react-native-svg';
 import { useTheme } from '../theme/ThemeProvider';
-
-function initialsFor(name: string, supplied?: string): string {
-  if (supplied?.trim()) return supplied.trim().slice(0, 3).toUpperCase();
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
-  return words.slice(0, 3).map(word => word[0]).join('').toUpperCase();
-}
+import { resolveTeamCrest } from '../services/teamCrestResolver';
+import { AppIcon } from './AppIcon';
 
 export function TeamCrest({
   uri,
   name,
-  initials,
+  initials: _initials,
   size = 44,
 }: {
   uri?: string | null;
@@ -22,10 +17,17 @@ export function TeamCrest({
   size?: number;
 }) {
   const theme = useTheme();
-  const [failed, setFailed] = useState(false);
-  const isSvg = useMemo(() => !!uri && /\.svg(?:\?|$)/i.test(uri), [uri]);
+  const [sourceUri, setSourceUri] = useState<string | null>(uri ?? null);
+  const isSvg = useMemo(() => !!sourceUri && /\.svg(?:\?|$)/i.test(sourceUri), [sourceUri]);
 
-  useEffect(() => setFailed(false), [uri]);
+  const findFallback = useCallback(() => {
+    resolveTeamCrest(name).then(setSourceUri).catch(() => setSourceUri(null));
+  }, [name]);
+
+  useEffect(() => {
+    setSourceUri(uri ?? null);
+    if (!uri) findFallback();
+  }, [findFallback, uri]);
 
   const frameStyle = {
     width: size,
@@ -33,19 +35,19 @@ export function TeamCrest({
     borderRadius: Math.round(size * 0.28),
   };
 
-  if (uri && !failed) {
+  if (sourceUri) {
     return (
       <View
         accessibilityLabel={`${name} crest`}
         style={[styles.frame, frameStyle, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.border }]}
       >
         {isSvg ? (
-          <SvgUri width={size - 10} height={size - 10} uri={uri} onError={() => setFailed(true)} />
+          <SvgUri width={size - 10} height={size - 10} uri={sourceUri} onError={() => sourceUri === uri ? findFallback() : setSourceUri(null)} />
         ) : (
           <Image
-            source={{ uri }}
+            source={{ uri: sourceUri }}
             resizeMode="contain"
-            onError={() => setFailed(true)}
+            onError={() => sourceUri === uri ? findFallback() : setSourceUri(null)}
             style={{ width: size - 10, height: size - 10 }}
           />
         )}
@@ -62,9 +64,7 @@ export function TeamCrest({
         { backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.border },
       ]}
     >
-      <Text style={[styles.initials, { color: theme.colors.accent, fontSize: Math.max(10, size * 0.24) }]}>
-        {initialsFor(name, initials ?? undefined)}
-      </Text>
+      <AppIcon name="shield" size={Math.max(18, size * 0.5)} color={theme.colors.textMuted} />
     </View>
   );
 }
@@ -76,5 +76,4 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
-  initials: { fontWeight: '900', letterSpacing: 0.3 },
 });

@@ -17,5 +17,6 @@ Run through this before every production release.
 - [ ] Test ads are disabled in release — verify by installing the signed release build and confirming ad units load with production IDs (do **not** click them).
 - [ ] No production ad was clicked during manual QA (use a separate AdMob test device for any build you personally click through).
 - [ ] Banner is visually separated from bottom navigation and content (non-clickable separator visible, no overlap).
-- [ ] Interstitial frequency caps behave as configured (see `src/config/adsConfig.ts` `FREQUENCY_CAPS`): no ad in the first 180 seconds, none before 4 eligible actions, ≥3 eligible actions and ≥8 minutes between ads, max 2 per session / 5 per rolling day.
+- [ ] Interstitial frequency caps behave as configured (see `src/config/adsConfig.ts` `FREQUENCY_CAPS`): no ad in the first 60 seconds, none before 3 eligible match/news transitions, at least 2 more eligible actions and at least 5 minutes between ads, max 3 per session / 7 per rolling day.
 - [ ] No interstitial appears on launch, on foreground, during onboarding, on tab change, or on back-button/exit.
+- [ ] The anchored banner, the in-feed slot after the second item, and the third-transition interstitial have each been verified with Google's test inventory. Never click production inventory during QA.

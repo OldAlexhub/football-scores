@@ -10,15 +10,11 @@ import { Card, EmptyState, LoadingState, PrimaryButton, SectionHeader } from '..
 import { MatchCard } from '../../components/MatchCard';
 import { useCompetitions } from '../../hooks/useCompetitions';
 import { fetchMatches, fetchTeams } from '../../providers/providerManager';
-import { useFavorites } from '../../state/FavoritesContext';
 import { usePreferences } from '../../state/PreferencesContext';
-import { useWatchPlan } from '../../state/WatchPlanContext';
 import { useReminders } from '../../state/RemindersContext';
-import { usePredictions } from '../../state/PredictionsContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { addDays, startOfLocalDay } from '../../utils/dates';
 import { flagForCountry } from '../../utils/countryFlags';
-import { shouldShieldMatch } from '../../services/spoilerShield';
 import type { Match, Team } from '../../types/domain';
 
 export function CompetitionDetailsScreen() {
@@ -28,11 +24,8 @@ export function CompetitionDetailsScreen() {
   const { t } = useTranslation();
   const theme = useTheme();
   const { competitions } = useCompetitions();
-  const { favoriteCompetitionIds, favoriteTeamIds, toggleCompetition } = useFavorites();
   const { preferences } = usePreferences();
-  const { getItem, addOrUpdate } = useWatchPlan();
   const { getReminderFor, setReminder, cancelReminder } = useReminders();
-  const { getPredictionFor } = usePredictions();
   const [matches, setMatches] = useState<Match[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,18 +53,13 @@ export function CompetitionDetailsScreen() {
   const recent = matches.filter(match => match.status === 'finished').slice(0, 10);
 
   const renderMatch = (match: Match, upcomingMatch: boolean) => {
-    const planItem = getItem(match.id) ?? null;
     const reminder = getReminderFor(match.id);
     return (
       <MatchCard
         key={match.id}
         match={match}
-        spoilerShielded={shouldShieldMatch(match, planItem, preferences.defaultSpoilerShieldEnabled)}
-        isFavorite={favoriteTeamIds.has(match.homeTeamId) || favoriteTeamIds.has(match.awayTeamId)}
         hasReminder={upcomingMatch && !!reminder && reminder.status === 'scheduled'}
-        hasPrediction={!!getPredictionFor(match.id)}
         onPress={() => navigation.navigate('MatchDetails', { matchId: match.id, match })}
-        onAddToMatchday={upcomingMatch ? () => addOrUpdate(match.id, { manuallyAdded: true }) : undefined}
         onToggleReminder={upcomingMatch ? () => reminder?.status === 'scheduled' ? cancelReminder(match.id) : setReminder(match, preferences.defaultReminderOffsetMinutes) : undefined}
       />
     );
@@ -86,9 +74,6 @@ export function CompetitionDetailsScreen() {
             <Text style={[styles.competitionName, { color: theme.colors.textPrimary }]}>{competition?.name ?? t('competitionDetails.title')}</Text>
             <Text style={[styles.competitionMeta, { color: theme.colors.textMuted }]}>{flagForCountry(competition?.country)}  {competition?.country ?? 'International'}</Text>
           </View>
-          <Pressable onPress={() => toggleCompetition(competitionId)} style={[styles.favoriteButton, { backgroundColor: theme.colors.accentSoft }]}>
-            <AppIcon name="star" size={22} color={favoriteCompetitionIds.has(competitionId) ? theme.colors.accent : theme.colors.textMuted} />
-          </Pressable>
         </View>
         <View style={styles.standingsAction}>
           <PrimaryButton label={t('competitionDetails.standings')} onPress={() => navigation.navigate('Standings', { competitionId })} />
@@ -124,7 +109,6 @@ const styles = StyleSheet.create({
   headerText: { flex: 1 },
   competitionName: { fontSize: 21, fontWeight: '900' },
   competitionMeta: { fontSize: 11, marginTop: 4 },
-  favoriteButton: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   standingsAction: { paddingHorizontal: 16, marginTop: 12 },
   sectionHeader: { paddingHorizontal: 16 },
   matchList: { paddingHorizontal: 16 },

@@ -7,17 +7,32 @@ import { TeamCrest } from '../../components/TeamCrest';
 import { SafeScrollView } from '../../components/SafeScrollView';
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { Card } from '../../components/ui';
-import { useFavorites } from '../../state/FavoritesContext';
 import { useCompetitions } from '../../hooks/useCompetitions';
 import { useTheme } from '../../theme/ThemeProvider';
+
+const FEATURED_COMPETITION_IDS = [
+  'openfootball:uefa.cl',
+  'openfootball:en.1',
+  'openfootball:es.1',
+  'openfootball:de.1',
+  'openfootball:it.1',
+  'openfootball:fr.1',
+  'openfootball:mls',
+  'openfootball:mx.1',
+  'openfootball:eg.1',
+  'openfootball:br.1',
+  'openfootball:ar.1',
+];
 
 export function InsightsHomeScreen() {
   const navigation = useNavigation<any>();
   const { t } = useTranslation();
   const theme = useTheme();
-  const { favoriteCompetitionIds } = useFavorites();
   const { competitions } = useCompetitions();
-  const favoriteCompetitions = competitions.filter(competition => favoriteCompetitionIds.has(competition.id));
+  const competitionById = new Map(competitions.map(competition => [competition.id, competition]));
+  const featuredCompetitions = FEATURED_COMPETITION_IDS
+    .map(id => competitionById.get(id))
+    .filter((competition): competition is NonNullable<typeof competition> => !!competition);
 
   return (
     <ScreenContainer>
@@ -40,14 +55,14 @@ export function InsightsHomeScreen() {
           </Card>
         </Pressable>
 
-        <Text style={[styles.sectionLabel, { color: theme.colors.textPrimary }]}>{t('more.favoriteCompetitions')}</Text>
-        {favoriteCompetitions.length === 0 ? (
+        <Text style={[styles.sectionLabel, { color: theme.colors.textPrimary }]}>{t('insights.featuredCompetitions')}</Text>
+        {featuredCompetitions.length === 0 ? (
           <Card style={styles.emptyCard}>
             <View style={[styles.emptyIcon, { backgroundColor: theme.colors.accentSoft }]}><AppIcon name="trophy" size={25} color={theme.colors.accent} /></View>
-            <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>{t('matchday.selectFavoriteCompetitions')}</Text>
-            <Text style={[styles.emptyBody, { color: theme.colors.textMuted }]}>{t('onboarding.competitionsBody')}</Text>
+            <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>{t('common.dataUnavailable')}</Text>
+            <Text style={[styles.emptyBody, { color: theme.colors.textMuted }]}>{t('matches.emptyBody')}</Text>
           </Card>
-        ) : favoriteCompetitions.map(competition => (
+        ) : featuredCompetitions.map(competition => (
           <Card key={competition.id} style={styles.competitionCard}>
             <View style={styles.competitionHeader}>
               <TeamCrest uri={competition.emblemUrl} name={competition.name} size={45} />
@@ -58,8 +73,6 @@ export function InsightsHomeScreen() {
             </View>
             <View style={styles.actionGrid}>
               <InsightAction icon="trophy" label={t('insights.standings')} onPress={() => navigation.navigate('Standings', { competitionId: competition.id })} />
-              <InsightAction icon="users" label={t('insights.teamComparison')} onPress={() => navigation.navigate('TeamComparison', { competitionId: competition.id })} />
-              <InsightAction icon="spark" label={t('insights.tableScenario')} onPress={() => navigation.navigate('TableScenario', { competitionId: competition.id })} />
             </View>
           </Card>
         ))}

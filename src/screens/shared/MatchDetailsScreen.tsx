@@ -1,13 +1,13 @@
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AppIcon, type AppIconName } from '../../components/AppIcon';
 import { TeamCrest } from '../../components/TeamCrest';
 import { SafeScrollView } from '../../components/SafeScrollView';
 import { ScreenContainer } from '../../components/ScreenContainer';
-import { Card, ErrorState, LoadingState, PrimaryButton, SecondaryButton } from '../../components/ui';
+import { Card, ErrorState, LoadingState, SecondaryButton } from '../../components/ui';
 import {
   fetchForm,
   fetchHeadToHead,
@@ -16,15 +16,20 @@ import {
   resolveMatchById,
 } from '../../providers/providerManager';
 import type { MatchDetailsParams, MatchesStackParamList } from '../../navigation/types';
-import { useFavorites } from '../../state/FavoritesContext';
 import { usePreferences } from '../../state/PreferencesContext';
 import { useReminders } from '../../state/RemindersContext';
-import { useWatchPlan } from '../../state/WatchPlanContext';
-import { usePredictions } from '../../state/PredictionsContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { formatKickoffDate, formatKickoffTime } from '../../utils/dates';
-import { shouldShieldMatch } from '../../services/spoilerShield';
-import type { Match, MatchAnalysis, MatchEventType, MatchPrediction } from '../../types/domain';
+import type { LineupPlayer, Match, MatchAnalysis, MatchEventType, MatchPrediction, MatchStatistic } from '../../types/domain';
+
+const ANALYSIS_SOURCE_LABEL = {
+  espn: 'ESPN',
+  'api-football': 'API-Football',
+  thesportsdb: 'TheSportsDB',
+  'football-data-org': 'football-data.org',
+  openfootball: 'OpenFootball',
+  cached: 'Saved data',
+} as const;
 
 type Nav = NativeStackNavigationProp<MatchesStackParamList, 'MatchDetails'>;
 
@@ -85,12 +90,10 @@ export function MatchDetailsScreen() {
   const navigation = useNavigation<Nav>();
   const { t } = useTranslation();
   const theme = useTheme();
+  const isFocused = useIsFocused();
   const params = route.params as MatchDetailsParams;
   const { preferences } = usePreferences();
-  const { favoriteTeamIds, toggleTeam } = useFavorites();
-  const { getItem, addOrUpdate } = useWatchPlan();
   const { getReminderFor, setReminder, cancelReminder } = useReminders();
-  const { getPredictionFor, regradeIfNeeded } = usePredictions();
 
   const [match, setMatch] = useState<Match | null>(params.match ?? null);
   const [loading, setLoading] = useState(!params.match);
@@ -118,7 +121,6 @@ export function MatchDetailsScreen() {
   useEffect(() => {
     if (!match) return;
     let mounted = true;
-    void regradeIfNeeded(match);
     setInsightsLoading(true);
     const homeId = providerPart(match.homeTeamId);
     const awayId = providerPart(match.awayTeamId);
@@ -130,12 +132,24 @@ export function MatchDetailsScreen() {
     if (match.status === 'scheduled') {
       tasks.push(fetchMatchPrediction(match).then(result => { if (mounted) setModelPrediction(result); }));
     }
-    if (match.status === 'finished') {
-      tasks.push(fetchMatchAnalysis(match).then(result => { if (mounted) setAnalysis(result); }));
-    }
+    tasks.push(fetchMatchAnalysis(match).then(result => { if (mounted) setAnalysis(result); }));
     Promise.allSettled(tasks).then(() => { if (mounted) setInsightsLoading(false); });
     return () => { mounted = false; };
-  }, [match, regradeIfNeeded]);
+  }, [match]);
+
+  useEffect(() => {
+    if (!match || !isFocused || (match.status !== 'live' && match.status !== 'half_time')) return;
+    let mounted = true;
+    const refreshLiveMatch = async () => {
+      const refreshed = await resolveMatchById(match.id);
+      if (!mounted || !refreshed) return;
+      setMatch(refreshed);
+      const refreshedAnalysis = await fetchMatchAnalysis(refreshed);
+      if (mounted) setAnalysis(refreshedAnalysis);
+    };
+    const timer = setInterval(() => { void refreshLiveMatch(); }, 30_000);
+    return () => { mounted = false; clearInterval(timer); };
+  }, [isFocused, match]);
 
   if (loading) {
     return <ScreenContainer><LoadingState label={t('common.loading')} /></ScreenContainer>;
@@ -149,10 +163,7 @@ export function MatchDetailsScreen() {
     );
   }
 
-  const planItem = getItem(match.id) ?? null;
-  const shielded = shouldShieldMatch(match, planItem, preferences.defaultSpoilerShieldEnabled);
   const reminder = getReminderFor(match.id);
-  const personalPrediction = getPredictionFor(match.id);
   const timeLabel = formatKickoffTime(match.kickoffUtc, match.kickoffUnknown, preferences.clock, preferences.language, t('common.timeNotConfirmed'));
   const dateLabel = match.kickoffUtc ? formatKickoffDate(match.kickoffUtc, preferences.language) : t('common.unknown');
   const score = match.currentScore ?? match.fullTimeScore;
@@ -169,16 +180,16 @@ export function MatchDetailsScreen() {
               <Text style={[styles.heroTeamName, { color: theme.colors.textPrimary }]} numberOfLines={2}>{match.homeTeamName}</Text>
             </View>
             <View style={styles.heroCenter}>
-              {shielded ? (
-                <AppIcon name="shield" size={30} color={theme.colors.accent} />
-              ) : score ? (
+              {score ? (
                 <Text style={[styles.heroScore, { color: theme.colors.textPrimary }]}>{score.home ?? '\u2013'} : {score.away ?? '\u2013'}</Text>
               ) : (
                 <Text style={[styles.heroTime, { color: theme.colors.textPrimary }]}>{timeLabel}</Text>
               )}
               <View style={[styles.statusBadge, { backgroundColor: isLive ? `${theme.colors.danger}18` : theme.colors.surfaceAlt }]}>
                 {isLive ? <View style={[styles.liveDot, { backgroundColor: theme.colors.danger }]} /> : null}
-                <Text style={[styles.statusLabel, { color: isLive ? theme.colors.danger : theme.colors.textMuted }]}>{t(`matchStatus.${match.status}`)}</Text>
+                <Text style={[styles.statusLabel, { color: isLive ? theme.colors.danger : theme.colors.textMuted }]}>
+                  {isLive && match.elapsedMinutes != null ? `${match.elapsedMinutes}${match.injuryTimeMinutes ? `+${match.injuryTimeMinutes}` : ''}'` : t(`matchStatus.${match.status}`)}
+                </Text>
               </View>
             </View>
             <View style={styles.heroTeam}>
@@ -188,13 +199,6 @@ export function MatchDetailsScreen() {
           </View>
           <Text style={[styles.dateTime, { color: theme.colors.textMuted }]}>{dateLabel}  ·  {timeLabel}</Text>
         </View>
-
-        {shielded ? (
-          <Card style={styles.section}>
-            <SectionTitle icon="shield" title={t('spoiler.resultHidden')} />
-            <PrimaryButton label={t('matchday.revealOnce')} style={styles.sectionAction} onPress={() => addOrUpdate(match.id, { spoilerRevealed: true })} />
-          </Card>
-        ) : null}
 
         {modelPrediction ? (
           <Card style={styles.section}>
@@ -216,9 +220,17 @@ export function MatchDetailsScreen() {
           </Card>
         ) : null}
 
-        {!shielded && match.status === 'finished' ? (
+        {(analysis || insightsLoading) && (match.status !== 'scheduled' || !!analysis?.lineups.length) ? (
           <Card style={styles.section}>
-            <SectionTitle icon="chart" title={t('matchDetails.analysis')} />
+            <SectionTitle
+              icon={isLive ? 'ball' : 'chart'}
+              title={isLive ? t('matchDetails.liveMatchCenter') : match.status === 'finished' ? t('matchDetails.analysis') : t('matchDetails.preMatchBriefing')}
+            />
+            {analysis?.hasExtendedData ? (
+              <Text style={[styles.analysisSource, { color: theme.colors.textMuted }]}>
+                {t('matches.activeSource', { provider: ANALYSIS_SOURCE_LABEL[analysis.providerId] })}
+              </Text>
+            ) : null}
             {insightsLoading ? <Text style={[styles.loadingInline, { color: theme.colors.textMuted }]}>{t('common.loading')}</Text> : null}
             {analysis?.summary.length ? (
               <View style={styles.summaryList}>
@@ -234,13 +246,7 @@ export function MatchDetailsScreen() {
             {analysis?.statistics.length ? (
               <View style={styles.analysisBlock}>
                 <Text style={[styles.subheading, { color: theme.colors.textPrimary }]}>{t('matchDetails.matchStatistics')}</Text>
-                {analysis.statistics.map(stat => (
-                  <View key={stat.key} style={[styles.statRow, { borderBottomColor: theme.colors.border }]}>
-                    <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stat.homeValue ?? '\u2013'}</Text>
-                    <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{stat.label}</Text>
-                    <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stat.awayValue ?? '\u2013'}</Text>
-                  </View>
-                ))}
+                {analysis.statistics.map(stat => <StatComparison key={stat.key} statistic={stat} />)}
               </View>
             ) : null}
 
@@ -290,7 +296,10 @@ export function MatchDetailsScreen() {
                       <Text style={[styles.lineupTeam, { color: theme.colors.textPrimary }]}>{lineup.teamName}</Text>
                       <Text style={[styles.formation, { color: theme.colors.accent }]}>{lineup.formation ?? ''}</Text>
                     </View>
-                    <Text style={[styles.lineupNames, { color: theme.colors.textSecondary }]}>{lineup.starters.map(player => player.name).join(' · ')}</Text>
+                    <FormationPitch players={lineup.starters} />
+                    {lineup.coachName ? (
+                      <Text style={[styles.coachName, { color: theme.colors.textMuted }]}>{t('matchDetails.coach')}: {lineup.coachName}</Text>
+                    ) : null}
                   </View>
                 ))}
               </View>
@@ -305,7 +314,7 @@ export function MatchDetailsScreen() {
           </Card>
         ) : null}
 
-        {(homeForm.length > 0 || awayForm.length > 0) && !shielded ? (
+        {(homeForm.length > 0 || awayForm.length > 0) ? (
           <Card style={styles.section}>
             <SectionTitle icon="chart" title={t('matchDetails.recentForm')} />
             <FormRow team={match.homeTeamName} form={homeForm} />
@@ -328,31 +337,19 @@ export function MatchDetailsScreen() {
         <Card style={styles.section}>
           <SectionTitle icon="settings" title={t('matchDetails.matchInformation')} />
           <InfoRow label={t('matchDetails.venue')} value={match.venue ?? t('common.dataUnavailable')} />
+          {match.referee ? <InfoRow label={t('matchDetails.referee')} value={match.referee} /> : null}
+          {match.attendance != null ? <InfoRow label={t('matchDetails.attendance')} value={match.attendance.toLocaleString()} /> : null}
           <InfoRow label={t('matchDetails.dataSource', { provider: '' }).trim()} value={match.attribution} />
-          {match.lastProviderUpdateUtc ? <InfoRow label={t('matchDetails.lastUpdated')} value={new Date(match.lastProviderUpdateUtc).toLocaleString()} /> : null}
+          {match.lastProviderUpdateUtc ? <InfoRow label={t('matchDetails.lastUpdated', { time: '' }).trim()} value={new Date(match.lastProviderUpdateUtc).toLocaleString()} /> : null}
         </Card>
 
-        <View style={styles.actionsGrid}>
+        {match.status === 'scheduled' ? <View style={styles.actionsGrid}>
           <SecondaryButton
             label={reminder?.status === 'scheduled' ? t('matches.cancelReminder') : t('matches.setReminder')}
             onPress={() => reminder?.status === 'scheduled' ? cancelReminder(match.id) : setReminder(match, preferences.defaultReminderOffsetMinutes)}
             style={styles.actionButton}
           />
-          <SecondaryButton label={t('matches.addToMatchday')} onPress={() => addOrUpdate(match.id, { manuallyAdded: true })} style={styles.actionButton} />
-          {match.status === 'scheduled' ? (
-            <PrimaryButton
-              label={personalPrediction ? t('predict.editPrediction') : t('predict.addPrediction')}
-              onPress={() => (navigation as any).navigate('PredictTab', { screen: 'PredictionEditor', params: { matchId: match.id, match } })}
-              style={styles.fullAction}
-            />
-          ) : null}
-        </View>
-
-        <Card style={styles.section}>
-          <SectionTitle icon="star" title={t('more.favoriteTeams')} />
-          <TeamFollowRow match={match} side="home" active={favoriteTeamIds.has(match.homeTeamId)} onPress={() => toggleTeam(match.homeTeamId)} />
-          <TeamFollowRow match={match} side="away" active={favoriteTeamIds.has(match.awayTeamId)} onPress={() => toggleTeam(match.awayTeamId)} />
-        </Card>
+        </View> : null}
       </SafeScrollView>
     </ScreenContainer>
   );
@@ -383,16 +380,59 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TeamFollowRow({ match, side, active, onPress }: { match: Match; side: 'home' | 'away'; active: boolean; onPress: () => void }) {
+function numericValue(value: MatchStatistic['homeValue']): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string') return null;
+  const parsed = Number.parseFloat(value.replace('%', ''));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function StatComparison({ statistic }: { statistic: MatchStatistic }) {
   const theme = useTheme();
-  const name = side === 'home' ? match.homeTeamName : match.awayTeamName;
-  const uri = side === 'home' ? match.homeTeamCrestUrl : match.awayTeamCrestUrl;
+  const home = numericValue(statistic.homeValue);
+  const away = numericValue(statistic.awayValue);
+  const total = Math.max(1, (home ?? 0) + (away ?? 0));
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.followRow, { opacity: pressed ? 0.65 : 1 }]}>
-      <TeamCrest uri={uri} name={name} size={34} />
-      <Text style={[styles.followName, { color: theme.colors.textPrimary }]}>{name}</Text>
-      <AppIcon name="star" size={20} color={active ? theme.colors.accent : theme.colors.textMuted} />
-    </Pressable>
+    <View style={[styles.statComparison, { borderBottomColor: theme.colors.border }]}>
+      <View style={styles.statNumbers}>
+        <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{statistic.homeValue ?? '\u2013'}</Text>
+        <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{statistic.label}</Text>
+        <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{statistic.awayValue ?? '\u2013'}</Text>
+      </View>
+      {home != null && away != null ? (
+        <View style={[styles.statTrack, { backgroundColor: theme.colors.surfaceAlt }]}>
+          <View style={{ flex: home / total, backgroundColor: theme.colors.accent }} />
+          <View style={{ flex: away / total, backgroundColor: theme.colors.textSecondary }} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function FormationPitch({ players }: { players: LineupPlayer[] }) {
+  const theme = useTheme();
+  const rows = new Map<number, LineupPlayer[]>();
+  players.forEach((player, index) => {
+    const row = Number.parseInt(player.grid?.split(':')[0] ?? '', 10);
+    const rowNumber = Number.isFinite(row) ? row : Math.floor(index / 3) + 1;
+    rows.set(rowNumber, [...(rows.get(rowNumber) ?? []), player]);
+  });
+  return (
+    <View style={[styles.pitch, { backgroundColor: theme.colors.accent }]}>
+      <View style={styles.halfwayLine} />
+      {[...rows.entries()].sort(([a], [b]) => a - b).map(([row, rowPlayers]) => (
+        <View key={row} style={styles.pitchRow}>
+          {rowPlayers.map(player => (
+            <View key={player.id} style={styles.pitchPlayer}>
+              <View style={[styles.playerNumber, { backgroundColor: theme.colors.surface }]}>
+                <Text style={[styles.playerNumberText, { color: theme.colors.accent }]}>{player.number ?? '\u2022'}</Text>
+              </View>
+              <Text style={styles.pitchPlayerName} numberOfLines={1}>{player.name.split(' ').pop()}</Text>
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -432,8 +472,12 @@ const styles = StyleSheet.create({
   summaryDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
   summaryText: { flex: 1, fontSize: 13, lineHeight: 19 },
   analysisBlock: { marginTop: 20 },
+  analysisSource: { fontSize: 9, fontWeight: '700', marginTop: -4, marginBottom: 10 },
   subheading: { fontSize: 14, fontWeight: '900', marginBottom: 9 },
   statRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
+  statComparison: { minHeight: 55, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 7 },
+  statNumbers: { flexDirection: 'row', alignItems: 'center' },
+  statTrack: { height: 5, flexDirection: 'row', borderRadius: 3, overflow: 'hidden', marginHorizontal: 10, marginTop: 5 },
   statValue: { width: 60, textAlign: 'center', fontSize: 13, fontWeight: '900' },
   statLabel: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700' },
   eventRow: { minHeight: 49, flexDirection: 'row', alignItems: 'center' },
@@ -454,6 +498,14 @@ const styles = StyleSheet.create({
   lineupTeam: { flex: 1, fontSize: 13, fontWeight: '900' },
   formation: { fontSize: 12, fontWeight: '900' },
   lineupNames: { fontSize: 11, lineHeight: 18 },
+  coachName: { fontSize: 10, fontWeight: '700', marginTop: 8 },
+  pitch: { minHeight: 228, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 6, justifyContent: 'space-around', overflow: 'hidden' },
+  halfwayLine: { position: 'absolute', left: 0, right: 0, top: '50%', height: StyleSheet.hairlineWidth, backgroundColor: '#FFFFFF88' },
+  pitchRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
+  pitchPlayer: { flex: 1, maxWidth: 72, alignItems: 'center' },
+  playerNumber: { width: 25, height: 25, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  playerNumberText: { fontSize: 9, fontWeight: '900' },
+  pitchPlayerName: { color: '#FFFFFF', fontSize: 8, fontWeight: '800', marginTop: 2, maxWidth: 70 },
   unavailable: { flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 12, padding: 12, marginTop: 12 },
   unavailableText: { flex: 1, fontSize: 11, lineHeight: 16 },
   formRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

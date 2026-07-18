@@ -34,6 +34,7 @@ export interface MatchesQuery {
   dateFromUtc: string;
   dateToUtc: string;
   competitionProviderIds?: string[];
+  forceRefresh?: boolean;
 }
 
 export interface HeadToHeadResult {
@@ -67,6 +68,6 @@ export interface FootballDataProvider {
   getTeam(providerTeamId: string): Promise<Team | null>;
   getHeadToHead(homeTeamProviderId: string, awayTeamProviderId: string): Promise<HeadToHeadResult>;
   getForm(teamProviderId: string): Promise<FormResult>;
-  getPrediction?(providerMatchId: string): Promise<MatchPrediction | null>;
-  getMatchAnalysis?(providerMatchId: string): Promise<MatchAnalysis | null>;
+  getPrediction?(providerMatchId: string, match?: Match): Promise<MatchPrediction | null>;
+  getMatchAnalysis?(providerMatchId: string, match?: Match): Promise<MatchAnalysis | null>;
 }

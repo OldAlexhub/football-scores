@@ -35,7 +35,20 @@ export async function requestConsentAndGate(): Promise<ConsentOutcome> {
 
     return { canRequestAds: info.canRequestAds, status: info.status };
   } catch {
-    return { canRequestAds: false, status: AdsConsentStatus.UNKNOWN };
+    // Google documents that UMP keeps the previous session's consent state
+    // while a fresh update is in progress (or fails). Preserve that valid
+    // state instead of turning a temporary network/update error into a full
+    // ad outage. A first install with no valid consent still fails closed.
+    const previous = await AdsConsent.getConsentInfo().catch(() => null);
+    if (__DEV__ && !previous?.canRequestAds) {
+      // Debug builds only use Google's demo units, so keep the ad layout
+      // testable even before the publisher creates a production UMP message.
+      return { canRequestAds: true, status: previous?.status ?? AdsConsentStatus.UNKNOWN };
+    }
+    return {
+      canRequestAds: previous?.canRequestAds ?? false,
+      status: previous?.status ?? AdsConsentStatus.UNKNOWN,
+    };
   }
 }
 

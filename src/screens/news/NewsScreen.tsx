@@ -5,6 +5,7 @@ import { SafeScrollView } from '../../components/SafeScrollView';
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { Card, EmptyState, ErrorState, LoadingState } from '../../components/ui';
 import { InFeedNativeAd } from '../../ads/InFeedNativeAd';
+import { maybeShowInterstitial } from '../../ads/InterstitialManager';
 import { fetchFootballNews } from '../../providers/newsProvider';
 import { usePreferences } from '../../state/PreferencesContext';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -45,8 +46,9 @@ export function NewsScreen() {
     [articles, filter],
   );
 
-  const handleOpen = (link: string) => {
-    Linking.openURL(link).catch(() => undefined);
+  const handleOpen = async (link: string) => {
+    await maybeShowInterstitial('news_article_open');
+    await Linking.openURL(link).catch(() => undefined);
   };
 
   return (
@@ -71,7 +73,7 @@ export function NewsScreen() {
       </View>
 
       {isStale ? <Text style={[styles.staleNotice, { color: theme.colors.warning }]}>{t('news.staleNotice')}</Text> : null}
-      {failedSources.length > 0 ? (
+      {failedSources.length > 0 && articles.length === 0 ? (
         <Text style={[styles.staleNotice, { color: theme.colors.textMuted }]}>
           {t('news.someSourcesUnavailable', { sources: failedSources.join(', ') })}
         </Text>
@@ -112,7 +114,7 @@ export function NewsScreen() {
                 </View>
                 </Card>
               </Pressable>
-              {index === 3 ? <View style={styles.nativeAdWrap}><InFeedNativeAd /></View> : null}
+              {index === 1 ? <View style={styles.nativeAdWrap}><InFeedNativeAd /></View> : null}
             </React.Fragment>
           ))}
         </SafeScrollView>

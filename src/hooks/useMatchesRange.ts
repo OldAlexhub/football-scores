@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import { fetchMatches, canManualRefresh, markManualRefresh } from '../providers/providerManager';
 import type { ProviderId, Match } from '../types/domain';
 
@@ -15,7 +16,8 @@ export interface MatchesRangeState {
   canRefresh: boolean;
 }
 
-export function useMatchesRange(dateFromUtc: string, dateToUtc: string): MatchesRangeState {
+export function useMatchesRange(dateFromUtc: string, dateToUtc: string, competitionProviderId?: string): MatchesRangeState {
+  const isFocused = useIsFocused();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -26,17 +28,22 @@ export function useMatchesRange(dateFromUtc: string, dateToUtc: string): Matches
   const [lastRefreshedAtUtc, setLastRefreshedAtUtc] = useState<string | null>(null);
   const mounted = useRef(true);
 
-  const load = useCallback(async (manual = false) => {
+  const load = useCallback(async (manual = false, background = false) => {
     if (manual && !canManualRefresh()) {
       return;
     }
     if (manual) {
       markManualRefresh();
       setRefreshing(true);
-    } else {
+    } else if (!background) {
       setLoading(true);
     }
-    const result = await fetchMatches({ dateFromUtc, dateToUtc });
+    const result = await fetchMatches({
+      dateFromUtc,
+      dateToUtc,
+      competitionProviderIds: competitionProviderId ? [competitionProviderId] : undefined,
+      forceRefresh: manual,
+    });
     if (!mounted.current) return;
     setMatches(result.data);
     setProviderId(result.providerId);
@@ -48,7 +55,7 @@ export function useMatchesRange(dateFromUtc: string, dateToUtc: string): Matches
     }
     setLoading(false);
     setRefreshing(false);
-  }, [dateFromUtc, dateToUtc]);
+  }, [dateFromUtc, dateToUtc, competitionProviderId]);
 
   useEffect(() => {
     mounted.current = true;
@@ -57,6 +64,13 @@ export function useMatchesRange(dateFromUtc: string, dateToUtc: string): Matches
       mounted.current = false;
     };
   }, [load]);
+
+  useEffect(() => {
+    const hasLiveMatch = matches.some(match => match.status === 'live' || match.status === 'half_time');
+    if (!isFocused || !hasLiveMatch) return;
+    const timer = setInterval(() => { void load(false, true); }, 30_000);
+    return () => clearInterval(timer);
+  }, [isFocused, load, matches]);
 
   return {
     matches, loading, refreshing, providerId, isFromCache, isStale, errorMessage,

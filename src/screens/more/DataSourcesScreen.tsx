@@ -68,7 +68,7 @@ export function DataSourcesScreen() {
 
         <SectionHeader title={t('dataSources.attribution')} />
         <Card style={styles.card}>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>football-data.org, API-Football, OpenFootball (public domain)</Text>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>football-data.org, API-Football, OpenFootball (public domain), TheSportsDB (fixtures and crests), ESPN (match analysis)</Text>
         </Card>
       </SafeScrollView>
     </ScreenContainer>

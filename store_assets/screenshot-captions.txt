@@ -1,10 +1,8 @@
-1. Football scores and fixtures, organized by league and date
-2. Today's matches, tomorrow's matches, and full weekend schedules
-3. League standings with home and away splits
-4. My Matchday — your personal football viewing plan
-5. Clash detection for overlapping fixtures
-6. Spoiler Shield — hide results until you're ready
-7. Private predictions — track your accuracy and streaks over time
-8. Team comparison and table scenarios
-9. English and Arabic, with full right-to-left support
-10. Light, dark, and system themes
+1. Choose a competition and see data-powered score predictions.
+2. Find World Cup, AFCON, Asian Cup, European, continental, and domestic competitions.
+3. Review complete post-match analysis backed by real match statistics.
+4. Follow goals, cards, and substitutions in the match timeline.
+5. Explore both starting lineups and formations on the pitch.
+6. Browse featured competitions and match intelligence in one place.
+7. Read current football headlines and transfer updates from their publishers.
+8. Control reminders, language, display, data sources, advertising privacy, and app privacy.

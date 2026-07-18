@@ -9,7 +9,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import type { ClockPreference, DefaultTab, ThemePreference } from '../../types/domain';
 
 const THEME_OPTIONS: ThemePreference[] = ['system', 'light', 'dark'];
-const TAB_OPTIONS: DefaultTab[] = ['matches', 'matchday', 'predict', 'insights', 'more'];
+const TAB_OPTIONS: DefaultTab[] = ['matches', 'insights', 'more'];
 
 export function DisplaySettingsScreen() {
   const { t } = useTranslation();
@@ -72,10 +72,6 @@ export function DisplaySettingsScreen() {
           <View style={styles.row}>
             <Text style={{ color: theme.colors.textPrimary }}>Show completed matches</Text>
             <Switch value={preferences.showCompletedMatches} onValueChange={v => update({ showCompletedMatches: v })} />
-          </View>
-          <View style={styles.row}>
-            <Text style={{ color: theme.colors.textPrimary }}>{t('onboarding.spoilerDefault')}</Text>
-            <Switch value={preferences.defaultSpoilerShieldEnabled} onValueChange={v => update({ defaultSpoilerShieldEnabled: v })} />
           </View>
         </Card>
       </SafeScrollView>

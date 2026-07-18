@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { initAdLifecycle, onAppForeground } from './AdLifecycleManager';
-import { initializeAdsOnce } from './AdService';
+import { initializeAdsOnce, retryAdsInitializationIfNeeded } from './AdService';
 import { preloadNext } from './AdPreloadController';
 import { startKeyboardVisibilityTracking } from './keyboardVisibility';
 import { maybeShowAppOpen, preloadAppOpen } from './AppOpenAdManager';
@@ -24,6 +24,7 @@ export function AdProvider({ children }: { children: React.ReactNode }) {
       if (state === 'ready') preloadAppOpen();
     });
     const unsubscribeForeground = onAppForeground(isNewSession => {
+      void retryAdsInitializationIfNeeded();
       preloadNext();
       if (isNewSession) void maybeShowAppOpen();
     });

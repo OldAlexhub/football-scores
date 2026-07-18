@@ -44,11 +44,6 @@ export function MoreHomeScreen() {
           <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>{t('more.subtitle')}</Text>
         </View>
 
-        <Group title={t('more.favorites')}>
-          <MenuRow icon="trophy" label={t('more.favoriteCompetitions')} onPress={() => nav('FavoriteCompetitions')} />
-          <MenuRow icon="users" label={t('more.favoriteTeams')} onPress={() => nav('FavoriteTeams')} last />
-        </Group>
-
         <Group title={t('more.notifications')}>
           <MenuRow icon="bell" label={t('more.notificationSettings')} onPress={() => nav('NotificationSettings')} last />
         </Group>
@@ -60,9 +55,7 @@ export function MoreHomeScreen() {
         </Group>
 
         <Group title={t('more.dataSources')}>
-          <MenuRow icon="chart" label={t('more.dataSources')} onPress={() => nav('DataSources')} />
-          <MenuRow icon="bookmark" label={t('more.dataManagement')} onPress={() => nav('DataManagement')} />
-          <MenuRow icon="shield" label={`${t('dataManagement.exportBackup')} / ${t('dataManagement.importBackup')}`} onPress={() => nav('BackupRestore')} last />
+          <MenuRow icon="chart" label={t('more.dataSources')} onPress={() => nav('DataSources')} last />
         </Group>
 
         <Group title={t('more.advertisingPrivacy')}>

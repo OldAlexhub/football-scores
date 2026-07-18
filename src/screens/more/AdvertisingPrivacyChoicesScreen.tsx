@@ -7,6 +7,7 @@ import { ScreenContainer } from '../../components/ScreenContainer';
 import { Card, PrimaryButton, SectionHeader } from '../../components/ui';
 import { useSuppressBanner } from '../../ads/useSuppressBanner';
 import { isPrivacyOptionsFormRequired, openPrivacyOptionsForm } from '../../ads/AdConsentManager';
+import { retryAdsInitializationIfNeeded } from '../../ads/AdService';
 import { useTheme } from '../../theme/ThemeProvider';
 
 const STATUS_LABEL: Record<AdsConsentStatus, string> = {
@@ -31,6 +32,7 @@ export function AdvertisingPrivacyChoicesScreen() {
   const handleOpenForm = async () => {
     const result = await openPrivacyOptionsForm();
     setStatus(result.status);
+    if (result.canRequestAds) await retryAdsInitializationIfNeeded(true);
   };
 
   return (
