@@ -4,7 +4,7 @@
  * always use Google's official test ad units so no developer device can ever
  * request or accidentally click a production ad.
  */
-import { NativeModules, Platform } from 'react-native';
+import { Platform } from 'react-native';
 
 export const ADMOB_APPLICATION_ID = 'ca-app-pub-7831002909037560~7761656669';
 
@@ -104,12 +104,4 @@ export const ADS_ENABLED = true;
 
 export function isAdsDiagnosticsEnabled(): boolean {
   return __DEV__;
-}
-
-export function getNativeWidgetBridge(): {
-  updateWidgetSnapshot: (json: string) => Promise<boolean>;
-  clearWidgetSnapshot: () => Promise<boolean>;
-} | null {
-  const mod = NativeModules.WidgetBridge;
-  return mod ?? null;
 }

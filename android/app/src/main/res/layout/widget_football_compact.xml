@@ -4,48 +4,83 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
+    android:gravity="center_vertical"
     android:orientation="vertical"
     android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/widget_brand"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/widget_brand"
+            android:textColor="#067A45"
+            android:textSize="9sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_status_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/widget_status_background"
+            android:maxLines="1"
+            android:paddingHorizontal="7dp"
+            android:paddingVertical="3dp"
+            android:text="@string/widget_status_upcoming"
+            android:textColor="#067A45"
+            android:textSize="8sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/widget_competition"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="#60736A"
+        android:textSize="10sp" />
 
     <TextView
         android:id="@+id/widget_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="#111111"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:maxLines="1"
+        android:layout_marginTop="2dp"
         android:ellipsize="end"
-        android:text="Football Scores" />
+        android:maxLines="1"
+        android:text="Football Scores"
+        android:textColor="#10231A"
+        android:textSize="14sp"
+        android:textStyle="bold" />
 
     <TextView
         android:id="@+id/widget_subtitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:textColor="#555555"
-        android:textSize="12sp"
-        android:maxLines="1"
+        android:layout_marginTop="3dp"
         android:ellipsize="end"
-        android:text="" />
+        android:maxLines="1"
+        android:textColor="#53655D"
+        android:textSize="11sp" />
 
     <TextView
-        android:id="@+id/widget_clash_warning"
+        android:id="@+id/widget_meta"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="3dp"
+        android:ellipsize="end"
+        android:maxLines="1"
         android:textColor="#B45309"
-        android:textSize="11sp"
-        android:visibility="gone"
-        android:text="" />
-
-    <TextView
-        android:id="@+id/widget_reminder_badge"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:textColor="#1D4ED8"
-        android:textSize="11sp"
-        android:visibility="gone"
-        android:text="@string/widget_reminder_set" />
+        android:textSize="9sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 </LinearLayout>

@@ -1,15 +1,28 @@
 <resources>
     <string name="app_name">Football Scores</string>
-    <string name="widget_description">Shows your next favorite football match and kickoff countdown.</string>
+    <string name="widget_description">Live scores and the next football fixtures, right on your home screen.</string>
+    <string name="widget_brand">FOOTBALL SCORES</string>
     <string name="widget_no_data_title">Football Scores</string>
-    <string name="widget_no_data_subtitle">Open the app to load matches</string>
+    <string name="widget_no_data_subtitle">Open the app to refresh fixtures</string>
+    <string name="widget_no_matches_title">No upcoming matches</string>
+    <string name="widget_no_matches_subtitle">Open the app to check more dates</string>
     <string name="widget_no_favorites_title">No favorite matches yet</string>
     <string name="widget_no_favorites_subtitle">Add favorite teams in the app</string>
     <string name="widget_time_not_confirmed">Time not confirmed</string>
     <string name="widget_kickoff_now">Kicking off now</string>
+    <string name="widget_countdown_days">In %1$dd %2$dh · %3$s</string>
     <string name="widget_countdown_hours">In %1$dh %2$dm · %3$s</string>
     <string name="widget_countdown_minutes">In %1$dm · %2$s</string>
     <string name="widget_clash_warning">Clashes with another match</string>
     <string name="widget_reminder_set">Reminder set</string>
+    <string name="widget_reminder_short">Reminder</string>
     <string name="widget_spoiler_protected">Result protected</string>
+    <string name="widget_status_live">LIVE</string>
+    <string name="widget_status_half_time">HALF TIME</string>
+    <string name="widget_status_upcoming">NEXT</string>
+    <string name="widget_live_minute">Live · %1$d′</string>
+    <string name="widget_live_now">Live now</string>
+    <string name="widget_half_time">Half time</string>
+    <string name="widget_last_updated">Updated %1$s</string>
+    <string name="widget_open_app">OPEN APP</string>
 </resources>

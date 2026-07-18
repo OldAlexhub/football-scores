@@ -34,7 +34,7 @@ APP_DISPLAY_NAME = "Football Scores"
 PROJECT_DIR_NAME = "FootballScores"
 PACKAGE_NAME = "com.oldalexhub.footballscores"
 VERSION_NAME = "1.0.0"
-VERSION_CODE = 1
+VERSION_CODE = 2
 
 ADMOB_APP_ID = "ca-app-pub-7831002909037560~7761656669"
 ADMOB_BANNER_ID = "ca-app-pub-7831002909037560/5490596409"
@@ -567,7 +567,10 @@ def main():
         print("\n[6/8] Building signed APK and AAB...")
         if args.clean and not args.no_clean:
             run_gradle(root, "clean", warnings, env)
-        build_signed_outputs(root, env, warnings)
+        ok_apk, ok_aab = build_signed_outputs(root, env, warnings)
+        if not (ok_apk and ok_aab):
+            print("\nERROR: release build failed; refusing to copy potentially stale APK/AAB outputs.")
+            sys.exit(1)
 
     print("\n[7/8] Copying release outputs...")
     if not args.screenshots_only:

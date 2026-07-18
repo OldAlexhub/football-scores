@@ -22,7 +22,8 @@ export type AppIconName =
   | 'globe'
   | 'spark'
   | 'bookmark'
-  | 'alert';
+  | 'alert'
+  | 'mail';
 
 export function AppIcon({ name, size = 22, color }: { name: AppIconName; size?: number; color: string }) {
   const common = {
@@ -127,6 +128,11 @@ export function AppIcon({ name, size = 22, color }: { name: AppIconName; size?: 
         <Path d="m12 2 1.5 5.4L19 9l-5.5 1.6L12 16l-1.5-5.4L5 9l5.5-1.6L12 2Zm6 13 .7 2.3L21 18l-2.3.7L18 21l-.7-2.3L15 18l2.3-.7L18 15Z" {...common} />
       ) : name === 'bookmark' ? (
         <Path d="M6 3h12v18l-6-4-6 4V3Z" {...common} />
+      ) : name === 'mail' ? (
+        <>
+          <Rect x="3" y="5" width="18" height="14" rx="3" {...common} />
+          <Path d="m4.5 7 7.5 6 7.5-6" {...common} />
+        </>
       ) : (
         <>
           <Path d="M12 3 2.8 20h18.4L12 3Z" {...common} />

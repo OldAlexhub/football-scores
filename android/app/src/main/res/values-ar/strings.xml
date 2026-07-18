@@ -1,15 +1,28 @@
 <resources>
     <string name="app_name">مباريات كرة القدم</string>
-    <string name="widget_description">يعرض مباراة فريقك المفضل القادمة والعد التنازلي لموعد الانطلاق.</string>
+    <string name="widget_description">النتائج المباشرة والمباريات القادمة على شاشة هاتفك الرئيسية.</string>
+    <string name="widget_brand">مباريات كرة القدم</string>
     <string name="widget_no_data_title">مباريات كرة القدم</string>
-    <string name="widget_no_data_subtitle">افتح التطبيق لتحميل المباريات</string>
+    <string name="widget_no_data_subtitle">افتح التطبيق لتحديث المباريات</string>
+    <string name="widget_no_matches_title">لا توجد مباريات قادمة</string>
+    <string name="widget_no_matches_subtitle">افتح التطبيق للتحقق من تواريخ أخرى</string>
     <string name="widget_no_favorites_title">لا توجد مباريات مفضلة بعد</string>
     <string name="widget_no_favorites_subtitle">أضف فرقًا مفضلة داخل التطبيق</string>
     <string name="widget_time_not_confirmed">الوقت غير مؤكد</string>
     <string name="widget_kickoff_now">الانطلاق الآن</string>
+    <string name="widget_countdown_days">خلال %1$d ي %2$d س · %3$s</string>
     <string name="widget_countdown_hours">خلال %1$d س %2$d د · %3$s</string>
     <string name="widget_countdown_minutes">خلال %1$d د · %2$s</string>
     <string name="widget_clash_warning">يتعارض مع مباراة أخرى</string>
     <string name="widget_reminder_set">تم ضبط التذكير</string>
+    <string name="widget_reminder_short">تذكير</string>
     <string name="widget_spoiler_protected">النتيجة محمية</string>
+    <string name="widget_status_live">مباشر</string>
+    <string name="widget_status_half_time">الاستراحة</string>
+    <string name="widget_status_upcoming">التالي</string>
+    <string name="widget_live_minute">مباشر · %1$d′</string>
+    <string name="widget_live_now">مباشر الآن</string>
+    <string name="widget_half_time">استراحة الشوطين</string>
+    <string name="widget_last_updated">آخر تحديث %1$s</string>
+    <string name="widget_open_app">فتح التطبيق</string>
 </resources>

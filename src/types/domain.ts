@@ -354,13 +354,19 @@ export interface WidgetSnapshotMatch {
   id: string;
   homeTeam: string;
   awayTeam: string;
+  competition: string;
   kickoffIso: string | null;
   kickoffUnknown: boolean;
+  status: MatchStatus;
+  statusDetail: string | null;
+  elapsedMinutes: number | null;
+  homeScore: number | null;
+  awayScore: number | null;
+  reminderSet: boolean;
   spoilerProtected: boolean;
 }
 
 export interface WidgetSnapshot {
-  hasFavorites: boolean;
   nextMatch: WidgetSnapshotMatch | null;
   upcoming: WidgetSnapshotMatch[];
   clashWarning: boolean;

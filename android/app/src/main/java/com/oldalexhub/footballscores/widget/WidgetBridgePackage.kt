@@ -26,7 +26,7 @@ class WidgetBridgePackage : BaseReactPackage() {
             false,
             false,
             false,
-            true,
+            false,
           ),
       )
     }
