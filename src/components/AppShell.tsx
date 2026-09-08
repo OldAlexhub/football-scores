@@ -7,6 +7,7 @@ import { AdProvider } from '../ads/AdProvider';
 import { initI18n, isRtlLanguage } from '../i18n';
 import { RootNavigator, linkingConfig } from '../navigation/RootNavigator';
 import { getPreferences } from '../storage/preferencesRepo';
+import { clearExpiredCache } from '../storage/repositories/providerCacheRepo';
 import { initDatabase } from '../storage/db';
 import { FavoritesProvider } from '../state/FavoritesContext';
 import { PreferencesProvider, usePreferences } from '../state/PreferencesContext';
@@ -72,7 +73,11 @@ export function AppShell() {
   const [dbReady, setDbReady] = useState(false);
 
   useEffect(() => {
-    initDatabase().then(() => setDbReady(true));
+    initDatabase().then(() => {
+      setDbReady(true);
+      // Housekeeping: drop stale provider_cache rows so it doesn't grow forever.
+      void clearExpiredCache().catch(() => undefined);
+    });
   }, []);
 
   return (

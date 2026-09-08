@@ -40,11 +40,11 @@ export const THE_SPORTS_DB_CAPABILITIES: ProviderCapabilities = {
   refreshLimits: { requestsPerMinute: 30, requestsPerDay: null },
 };
 
-export const ESPN_ANALYSIS_CAPABILITIES: ProviderCapabilities = {
-  schedules: false,
-  scores: false,
-  delayedScores: false,
-  liveStatus: false,
+export const ESPN_CAPABILITIES: ProviderCapabilities = {
+  schedules: true,
+  scores: true,
+  delayedScores: true,
+  liveStatus: true,
   standings: false,
   teams: false,
   competitionMetadata: false,
@@ -53,9 +53,29 @@ export const ESPN_ANALYSIS_CAPABILITIES: ProviderCapabilities = {
   matchEvents: true,
   lineups: true,
   playerStatistics: true,
-  knockoutStages: false,
+  knockoutStages: true,
   teamCrests: true,
   historicalSeasons: false,
+  requiresApiKey: false,
+  refreshLimits: { requestsPerMinute: null, requestsPerDay: null },
+};
+
+export const OPEN_LIGA_DB_CAPABILITIES: ProviderCapabilities = {
+  schedules: true,
+  scores: true,
+  delayedScores: true,
+  liveStatus: true,
+  standings: true,
+  teams: true,
+  competitionMetadata: true,
+  headToHead: false,
+  form: false,
+  matchEvents: false,
+  lineups: false,
+  playerStatistics: false,
+  knockoutStages: true,
+  teamCrests: true,
+  historicalSeasons: true,
   requiresApiKey: false,
   refreshLimits: { requestsPerMinute: null, requestsPerDay: null },
 };

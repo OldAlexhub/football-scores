@@ -7,6 +7,10 @@ import { MMKV } from 'react-native-mmkv';
  */
 export const preferencesStorage = new MMKV({ id: 'football-scores-preferences' });
 export const adStateStorage = new MMKV({ id: 'football-scores-ad-state' });
+/** Rolling per-provider request counters, so a rate-limited source can be skipped. */
+export const rateBudgetStorage = new MMKV({ id: 'football-scores-rate-budget' });
+/** Per-feed ETag / Last-Modified for conditional news fetches. */
+export const newsHttpStorage = new MMKV({ id: 'football-scores-news-http' });
 
 export function getJson<T>(storage: MMKV, key: string, fallback: T): T {
   const raw = storage.getString(key);

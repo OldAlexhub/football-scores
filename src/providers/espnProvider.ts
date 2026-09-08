@@ -8,48 +8,35 @@ import type {
   MatchEventType,
   MatchLineup,
   MatchStatistic,
+  MatchStatus,
   PlayerMatchPerformance,
   StandingRow,
   Team,
 } from '../types/domain';
-import { ESPN_ANALYSIS_CAPABILITIES } from './capabilities';
+import {
+  COMPETITION_BY_ESPN_CODE,
+  COMPETITION_BY_KEY,
+  DEFAULT_COMPETITION_KEYS,
+  resolveCatalogCompetition,
+} from '../config/competitionCatalog';
+import { readCache, writeCache } from '../storage/repositories/providerCacheRepo';
+import { ESPN_CAPABILITIES } from './capabilities';
+import { CACHE_TTL_MS, MAX_ESPN_RANGE_DAYS, cacheKeys } from './cacheKeys';
+import { mapWithConcurrency } from './concurrency';
 import { fetchJson } from './httpClient';
 import type { FootballDataProvider, FormResult, HeadToHeadResult, MatchesQuery } from './types';
 
 const BASE_URL = 'https://site.api.espn.com/apis/site/v2/sports/soccer';
 const responseCache = new Map<string, Promise<any>>();
 
-const ESPN_LEAGUE_BY_COMPETITION: Record<string, string> = {
-  'american usl championship': 'usa.usl.1',
-  'american usl league one': 'usa.usl.l1',
-  'premier league': 'eng.1',
-  championship: 'eng.2',
-  'la liga': 'esp.1',
-  bundesliga: 'ger.1',
-  'serie a': 'ita.1',
-  'ligue 1': 'fra.1',
-  mls: 'usa.1',
-  'liga mx': 'mex.1',
-  'saudi pro league': 'ksa.1',
-  'egyptian premier league': 'egy.1',
-  brasileirão: 'bra.1',
-  'liga profesional argentina': 'arg.1',
-  eredivisie: 'ned.1',
-  'primeira liga': 'por.1',
-  'uefa champions league': 'uefa.champions',
-  'uefa europa league': 'uefa.europa',
-  'uefa conference league': 'uefa.europa.conf',
-  'caf champions league': 'caf.champions',
-  'afc champions league elite': 'afc.champions',
-  'copa libertadores': 'conmebol.libertadores',
-  'fifa club world cup': 'fifa.cwc',
-  'fifa world cup': 'fifa.world',
-  'africa cup of nations': 'caf.nations',
-  'afc asian cup': 'afc.asian.cup',
-  'copa america': 'conmebol.america',
-  'uefa european championship': 'uefa.euro',
-  'concacaf gold cup': 'concacaf.gold',
-};
+function espnCodeForMatch(match: Match): string | null {
+  return (
+    resolveCatalogCompetition(match.catalogKey)?.espnCode ??
+    resolveCatalogCompetition(match.competitionId)?.espnCode ??
+    resolveCatalogCompetition(match.competitionName)?.espnCode ??
+    null
+  );
+}
 
 const STATISTIC_ORDER = [
   'possessionPct',
@@ -243,7 +230,7 @@ function buildSummary(match: Match, statistics: MatchStatistic[]): string[] {
 
 async function findEspnSummary(match: Match): Promise<{ event: any; raw: any } | null> {
   if (!match.kickoffUtc) return null;
-  const leagueCode = ESPN_LEAGUE_BY_COMPETITION[match.competitionName.toLocaleLowerCase()];
+  const leagueCode = espnCodeForMatch(match);
   if (!leagueCode) return null;
   const kickoff = new Date(match.kickoffUtc);
   const dateKeys = [0, -86_400_000, 86_400_000].map(offset => dateKey(new Date(kickoff.getTime() + offset)));
@@ -365,15 +352,175 @@ function buildPrediction(match: Match, event: any, raw: any): MatchPrediction | 
   };
 }
 
+function espnDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10).replace(/-/g, '');
+}
+
+function statusFromEspn(typeObj: any, completed: boolean): MatchStatus {
+  const name = String(typeObj?.name ?? '').toUpperCase();
+  const state = String(typeObj?.state ?? '').toLowerCase();
+  if (name.includes('POSTPON')) return 'postponed';
+  if (name.includes('CANCEL')) return 'cancelled';
+  if (name.includes('ABANDON')) return 'abandoned';
+  if (name.includes('SUSPEND') || name.includes('DELAY')) return 'suspended';
+  if (name.includes('HALFTIME')) return 'half_time';
+  if (state === 'pre') return 'scheduled';
+  if (state === 'in') return 'live';
+  if (state === 'post') return completed ? 'finished' : 'postponed';
+  return 'scheduled';
+}
+
+function espnElapsed(status: any): number | null {
+  if (String(status?.type?.state ?? '') !== 'in') return null;
+  const fromClock = parseInt(String(status?.displayClock ?? '').replace(/[^0-9]/g, ''), 10);
+  if (Number.isFinite(fromClock) && fromClock > 0) return fromClock;
+  const period = Number(status?.period);
+  return Number.isFinite(period) && period > 0 ? (period - 1) * 45 + 1 : null;
+}
+
+const ESPN_KNOCKOUT_PATTERN = /final|semi|quarter|round of|knockout|play-?off|leg/i;
+
+function mapScoreboardEvent(event: any, leagueCode: string, leagueName: string | null): Match | null {
+  const competition = event.competitions?.[0];
+  if (!competition) return null;
+  const competitors: any[] = competition.competitors ?? [];
+  const home = competitors.find(c => c.homeAway === 'home');
+  const away = competitors.find(c => c.homeAway === 'away');
+  if (!home?.team || !away?.team) return null;
+
+  const catalog = COMPETITION_BY_ESPN_CODE.get(leagueCode);
+  const status = competition.status ?? event.status ?? {};
+  const domainStatus = statusFromEspn(status.type, status.type?.completed === true);
+  const homeScore = home.score != null && home.score !== '' ? Number(home.score) : null;
+  const awayScore = away.score != null && away.score !== '' ? Number(away.score) : null;
+  const hasScore = homeScore != null || awayScore != null;
+  const score = hasScore ? { home: homeScore, away: awayScore } : null;
+  const kickoffIso = event.date ? new Date(event.date).toISOString() : null;
+  const noteHeadline = String(competition.notes?.[0]?.headline ?? event.season?.slug ?? '');
+  const isKnockout = !!catalog?.knockout || ESPN_KNOCKOUT_PATTERN.test(noteHeadline);
+
+  const homeName = home.team.displayName ?? home.team.name ?? 'Home';
+  const awayName = away.team.displayName ?? away.team.name ?? 'Away';
+  const crest = (team: any): string | null => team.logo ?? team.logos?.[0]?.href ?? null;
+
+  return {
+    id: `espn:${event.id}`,
+    providerId: 'espn',
+    providerMatchId: String(event.id),
+    competitionId: catalog?.canonicalId ?? `espn:${leagueCode}`,
+    competitionName: catalog?.canonicalName ?? leagueName ?? event.leagues?.[0]?.name ?? 'Football',
+    competitionEmblemUrl: event.leagues?.[0]?.logos?.[0]?.href ?? null,
+    country: null,
+    season: event.season?.year != null ? String(event.season.year) : null,
+    stage: competition.notes?.[0]?.headline ?? null,
+    round: competition.notes?.[0]?.headline ?? null,
+    matchweek: null,
+    homeTeamId: `espn:${home.team.id}`,
+    homeTeamName: homeName,
+    homeTeamInitials: (home.team.abbreviation ?? homeName.slice(0, 3)).toUpperCase(),
+    homeTeamCrestUrl: crest(home.team),
+    awayTeamId: `espn:${away.team.id}`,
+    awayTeamName: awayName,
+    awayTeamInitials: (away.team.abbreviation ?? awayName.slice(0, 3)).toUpperCase(),
+    awayTeamCrestUrl: crest(away.team),
+    kickoffUtc: kickoffIso,
+    kickoffUnknown: !kickoffIso,
+    status: domainStatus,
+    statusDetail: status.type?.shortDetail ?? status.type?.description ?? null,
+    elapsedMinutes: espnElapsed(status),
+    injuryTimeMinutes: null,
+    halfTimeScore: null,
+    fullTimeScore: domainStatus === 'finished' ? score : null,
+    extraTimeScore: null,
+    penaltyScore: null,
+    currentScore: score,
+    winner: home.winner === true ? 'home' : away.winner === true ? 'away'
+      : (homeScore != null && awayScore != null
+        ? (homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'draw')
+        : null),
+    venue: competition.venue?.fullName ?? null,
+    referee: null,
+    attendance: Number.isFinite(Number(competition.attendance)) ? Number(competition.attendance) : null,
+    lastProviderUpdateUtc: new Date().toISOString(),
+    isKnockout,
+    extraTimePossible: isKnockout,
+    attribution: 'ESPN',
+    sourceIds: ['espn'],
+    catalogKey: catalog?.key ?? null,
+  };
+}
+
+async function cachedEspnScoreboard(leagueCode: string, date: Date): Promise<any> {
+  const key = espnDateKey(date);
+  const cacheKey = cacheKeys.espnScoreboard(leagueCode, key);
+  const isToday = key === espnDateKey(new Date());
+  const cached = await readCache<any>(cacheKey).catch(() => null);
+  if (cached && !cached.isStale) return cached.payload;
+  try {
+    const data = await fetchJson<any>('espn', `${BASE_URL}/${leagueCode}/scoreboard?dates=${key}&limit=100`);
+    await writeCache(
+      cacheKey,
+      'espn',
+      data,
+      isToday ? CACHE_TTL_MS.espnScoreboardLive : CACHE_TTL_MS.espnScoreboardIdle,
+    ).catch(() => undefined);
+    return data;
+  } catch (error) {
+    if (cached) return cached.payload;
+    throw error;
+  }
+}
+
 class EspnProvider implements FootballDataProvider {
   readonly id = 'espn' as const;
-  readonly displayName = 'ESPN match analysis';
-  readonly capabilities = ESPN_ANALYSIS_CAPABILITIES;
+  readonly displayName = 'ESPN';
+  readonly capabilities = ESPN_CAPABILITIES;
 
   isConfigured(): boolean { return true; }
   async getCompetitions(): Promise<Competition[]> { return []; }
-  async getMatches(_query: MatchesQuery): Promise<Match[]> { return []; }
-  async getMatch(): Promise<Match | null> { return null; }
+
+  async getMatches(query: MatchesQuery): Promise<Match[]> {
+    const keys = query.competitionProviderIds?.length
+      ? query.competitionProviderIds
+      : [...DEFAULT_COMPETITION_KEYS];
+    const codes = [...new Set(
+      keys.map(key => COMPETITION_BY_KEY.get(key)?.espnCode).filter((c): c is string => !!c),
+    )];
+    if (codes.length === 0) return [];
+
+    const days: Date[] = [];
+    let cursor = new Date(query.dateFromUtc.slice(0, 10));
+    const end = new Date(query.dateToUtc.slice(0, 10));
+    while (cursor <= end && days.length < MAX_ESPN_RANGE_DAYS) {
+      days.push(new Date(cursor));
+      cursor = new Date(cursor.getTime() + 86_400_000);
+    }
+
+    const pairs = codes.flatMap(code => days.map(day => ({ code, day })));
+    const rangeStart = new Date(query.dateFromUtc).getTime();
+    const rangeEnd = new Date(query.dateToUtc).getTime();
+
+    const grouped = await mapWithConcurrency(pairs, 6, async ({ code, day }) => {
+      const data = await cachedEspnScoreboard(code, day).catch(() => ({ events: [], leagues: [] }));
+      const leagueName = data.leagues?.[0]?.name ?? null;
+      return (data.events ?? [])
+        .map((event: any) => mapScoreboardEvent(event, code, leagueName))
+        .filter((match: Match | null): match is Match => !!match);
+    });
+
+    const seen = new Set<string>();
+    return grouped.flat().filter(match => {
+      if (seen.has(match.id)) return false;
+      seen.add(match.id);
+      if (!match.kickoffUtc) return true;
+      const kickoff = new Date(match.kickoffUtc).getTime();
+      return kickoff >= rangeStart && kickoff <= rangeEnd;
+    });
+  }
+
+  async getMatch(): Promise<Match | null> {
+    return null;
+  }
   async getStandings(): Promise<StandingRow[]> { return []; }
   async getTeams(): Promise<Team[]> { return []; }
   async getTeam(): Promise<Team | null> { return null; }

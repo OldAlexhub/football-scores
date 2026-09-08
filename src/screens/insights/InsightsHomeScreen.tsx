@@ -42,7 +42,7 @@ export function InsightsHomeScreen() {
           <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>{t('insights.subtitle')}</Text>
         </View>
 
-        <Pressable onPress={() => navigation.navigate('News')} style={({ pressed }) => ({ opacity: pressed ? 0.72 : 1 })}>
+        <Pressable onPress={() => navigation.navigate('HomeTab', { screen: 'News' })} style={({ pressed }) => ({ opacity: pressed ? 0.72 : 1 })}>
           <Card style={[styles.newsCard, { backgroundColor: theme.colors.accentSoft }]}>
             <View style={[styles.featureIcon, { backgroundColor: theme.colors.surface }]}>
               <AppIcon name="news" size={24} color={theme.colors.accent} />

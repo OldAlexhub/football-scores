@@ -14,7 +14,15 @@ import { BackupRestoreScreen } from '../screens/more/BackupRestoreScreen';
 import { AdvertisingPrivacyChoicesScreen } from '../screens/more/AdvertisingPrivacyChoicesScreen';
 import { PrivacyPolicyScreen } from '../screens/more/PrivacyPolicyScreen';
 import { AboutScreen } from '../screens/more/AboutScreen';
+import { FavoritePlayersScreen } from '../screens/more/FavoritePlayersScreen';
 import { ExportPreviewScreen } from '../screens/shared/ExportPreviewScreen';
+import { InsightsHomeScreen } from '../screens/insights/InsightsHomeScreen';
+import { TeamComparisonScreen } from '../screens/insights/TeamComparisonScreen';
+import { TableScenarioScreen } from '../screens/insights/TableScenarioScreen';
+import { StandingsScreen } from '../screens/shared/StandingsScreen';
+import { TeamDetailsScreen } from '../screens/shared/TeamDetailsScreen';
+import { MatchDetailsScreen } from '../screens/shared/MatchDetailsScreen';
+import { PlayerDetailsScreen } from '../screens/players/PlayerDetailsScreen';
 import type { MoreStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<MoreStackParamList>();
@@ -26,6 +34,7 @@ export function MoreStack() {
       <Stack.Screen name="MoreHome" component={MoreHomeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="FavoriteCompetitions" component={FavoriteCompetitionsScreen} options={{ title: t('more.favoriteCompetitions') }} />
       <Stack.Screen name="FavoriteTeams" component={FavoriteTeamsScreen} options={{ title: t('more.favoriteTeams') }} />
+      <Stack.Screen name="FavoritePlayers" component={FavoritePlayersScreen} options={{ title: t('more.favoritePlayers') }} />
       <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} options={{ title: t('more.notificationSettings') }} />
       <Stack.Screen name="LanguageSettings" component={LanguageSettingsScreen} options={{ title: t('more.languageSettings') }} />
       <Stack.Screen name="DisplaySettings" component={DisplaySettingsScreen} options={{ title: t('more.display') }} />
@@ -37,6 +46,13 @@ export function MoreStack() {
       <Stack.Screen name="AdvertisingPrivacyChoices" component={AdvertisingPrivacyChoicesScreen} options={{ title: t('ads.privacyChoices') }} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ title: t('about.privacyPolicy') }} />
       <Stack.Screen name="About" component={AboutScreen} options={{ title: t('about.title') }} />
+      <Stack.Screen name="InsightsHome" component={InsightsHomeScreen} options={{ title: t('insights.title') }} />
+      <Stack.Screen name="TeamComparison" component={TeamComparisonScreen} options={{ title: t('insights.teamComparison') }} />
+      <Stack.Screen name="TableScenario" component={TableScenarioScreen} options={{ title: t('insights.tableScenario') }} />
+      <Stack.Screen name="Standings" component={StandingsScreen} options={{ title: t('insights.standings') }} />
+      <Stack.Screen name="TeamDetails" component={TeamDetailsScreen} options={{ title: t('teamDetails.title') }} />
+      <Stack.Screen name="MatchDetails" component={MatchDetailsScreen} options={{ title: t('matchDetails.title') }} />
+      <Stack.Screen name="PlayerDetails" component={PlayerDetailsScreen} options={{ title: t('players.title') }} />
     </Stack.Navigator>
   );
 }

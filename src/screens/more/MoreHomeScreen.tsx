@@ -44,6 +44,16 @@ export function MoreHomeScreen() {
           <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>{t('more.subtitle')}</Text>
         </View>
 
+        <Group title={t('more.following')}>
+          <MenuRow icon="trophy" label={t('more.favoriteCompetitions')} onPress={() => nav('FavoriteCompetitions')} />
+          <MenuRow icon="star" label={t('more.favoriteTeams')} onPress={() => nav('FavoriteTeams')} />
+          <MenuRow icon="users" label={t('more.favoritePlayers')} onPress={() => nav('FavoritePlayers')} last />
+        </Group>
+
+        <Group title={t('more.explore')}>
+          <MenuRow icon="chart" label={t('insights.title')} onPress={() => nav('InsightsHome')} last />
+        </Group>
+
         <Group title={t('more.notifications')}>
           <MenuRow icon="bell" label={t('more.notificationSettings')} onPress={() => nav('NotificationSettings')} last />
         </Group>

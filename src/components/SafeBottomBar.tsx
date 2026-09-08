@@ -8,20 +8,16 @@ import { useTheme } from '../theme/ThemeProvider';
 import { AppIcon, type AppIconName } from './AppIcon';
 
 const TAB_ICONS: Record<string, AppIconName> = {
+  HomeTab: 'home',
   MatchesTab: 'ball',
-  MatchdayTab: 'calendar',
-  PredictTab: 'target',
-  InsightsTab: 'chart',
-  NewsTab: 'news',
+  PlayersTab: 'users',
   MoreTab: 'menu',
 };
 
 const TAB_LABEL_KEYS: Record<string, string> = {
+  HomeTab: 'tabs.home',
   MatchesTab: 'tabs.matches',
-  MatchdayTab: 'tabs.matchday',
-  PredictTab: 'tabs.predict',
-  InsightsTab: 'tabs.insights',
-  NewsTab: 'news.title',
+  PlayersTab: 'tabs.players',
   MoreTab: 'tabs.more',
 };
 

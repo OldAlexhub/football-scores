@@ -1,24 +1,37 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AppIcon } from '../../components/AppIcon';
 import { InFeedNativeAd } from '../../ads/InFeedNativeAd';
 import { maybeShowInterstitial } from '../../ads/InterstitialManager';
 import { FilterChip } from '../../components/FilterChip';
 import { MatchCard } from '../../components/MatchCard';
+import { MonthCalendar } from '../../components/MonthCalendar';
 import { SafeModalContainer } from '../../components/SafeModalContainer';
 import { EmptyState, LoadingState, PrimaryButton } from '../../components/ui';
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { COMPETITION_CATALOG, type CompetitionCategory } from '../../config/competitionCatalog';
 import { useMatchesRange } from '../../hooks/useMatchesRange';
+import { MAX_RANGE_DAYS } from '../../providers/cacheKeys';
+import { normalizeCompetitionName } from '../../providers/nameMatch';
 import { fetchMatchPrediction } from '../../providers/providerManager';
 import type { MatchesStackParamList } from '../../navigation/types';
 import { usePreferences } from '../../state/PreferencesContext';
 import { useReminders } from '../../state/RemindersContext';
 import { useTheme } from '../../theme/ThemeProvider';
-import { addDays, endOfLocalDay, startOfLocalDay, upcomingWeekendRange } from '../../utils/dates';
+import { addDays, endOfLocalDay, formatKickoffDate, startOfLocalDay, toLocalDateKey, upcomingWeekendRange } from '../../utils/dates';
+import { buildRange, clampRange, isSingleDay, type DateRangePreset } from '../../utils/dateRange';
 import type { Match, MatchPrediction, MatchStatus, ProviderId } from '../../types/domain';
+
+type DateMode = 'day' | 'range';
+const RANGE_PRESETS: DateRangePreset[] = ['today', 'weekend', 'next7', 'next14'];
+const PRESET_LABEL: Record<DateRangePreset, string> = {
+  today: 'matches.rangeToday',
+  weekend: 'matches.rangeWeekend',
+  next7: 'matches.rangeNext7',
+  next14: 'matches.rangeNext14',
+};
 
 type Filter = 'all' | 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled';
 
@@ -36,7 +49,9 @@ const SOURCE_LABEL: Record<ProviderId, string> = {
   openfootball: 'Community data',
   thesportsdb: 'TheSportsDB',
   espn: 'ESPN',
+  openligadb: 'OpenLigaDB',
   cached: 'Saved data',
+  merged: 'Multiple sources',
 };
 
 const PICKER_CATEGORY_ORDER: CompetitionCategory[] = ['international', 'club', 'domestic'];
@@ -50,6 +65,12 @@ export function MatchesHomeScreen({ navigation }: Props) {
   const { getReminderFor, setReminder, cancelReminder } = useReminders();
 
   const [selectedDate, setSelectedDate] = useState(() => startOfLocalDay(new Date()));
+  const [dateMode, setDateMode] = useState<DateMode>('day');
+  const [rangeStart, setRangeStart] = useState<Date>(() => startOfLocalDay(new Date()));
+  const [rangeEnd, setRangeEnd] = useState<Date>(() => endOfLocalDay(new Date()));
+  const [activePreset, setActivePreset] = useState<DateRangePreset | null>('today');
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [rangeAnchor, setRangeAnchor] = useState<Date | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
   const [selectedCompetitionKey, setSelectedCompetitionKey] = useState<string | null>(null);
@@ -57,10 +78,14 @@ export function MatchesHomeScreen({ navigation }: Props) {
   const [competitionSearch, setCompetitionSearch] = useState('');
   const [modelPredictions, setModelPredictions] = useState<Record<string, MatchPrediction>>({});
 
-  const dateFromUtc = selectedDate.toISOString();
-  const dateToUtc = endOfLocalDay(selectedDate).toISOString();
+  const dateFromUtc = dateMode === 'day'
+    ? startOfLocalDay(selectedDate).toISOString()
+    : startOfLocalDay(rangeStart).toISOString();
+  const dateToUtc = dateMode === 'day'
+    ? endOfLocalDay(selectedDate).toISOString()
+    : endOfLocalDay(rangeEnd).toISOString();
   const selectedCompetition = COMPETITION_CATALOG.find(item => item.key === selectedCompetitionKey) ?? null;
-  const result = useMatchesRange(dateFromUtc, dateToUtc, selectedCompetition?.canonicalId);
+  const result = useMatchesRange(dateFromUtc, dateToUtc, selectedCompetitionKey ?? undefined);
 
   const dateStrip = useMemo(() => {
     const days: Date[] = [];
@@ -71,7 +96,12 @@ export function MatchesHomeScreen({ navigation }: Props) {
   const filteredMatches = useMemo(() => result.matches.filter(match => {
     if (selectedCompetitionKey) {
       const selected = COMPETITION_CATALOG.find(item => item.key === selectedCompetitionKey);
-      if (selected && !selected.names.some(name => name === match.competitionName)) return false;
+      if (selected && match.catalogKey !== selectedCompetitionKey) {
+        const target = normalizeCompetitionName(match.competitionName);
+        const aliasNames = [selected.canonicalName, selected.label, ...selected.names, ...(selected.aliases ?? [])];
+        const nameMatches = aliasNames.some(name => normalizeCompetitionName(name) === target);
+        if (!nameMatches && match.competitionId !== selected.canonicalId) return false;
+      }
     }
     const statuses = STATUS_FOR_FILTER[filter];
     if (statuses && !statuses.includes(match.status)) return false;
@@ -82,6 +112,28 @@ export function MatchesHomeScreen({ navigation }: Props) {
     }
     return true;
   }), [result.matches, selectedCompetitionKey, filter, search]);
+
+  const sections = useMemo(() => {
+    if (dateMode === 'day' || isSingleDay(dateFromUtc, dateToUtc)) {
+      return [{ key: 'all', title: '', data: filteredMatches }];
+    }
+    const groups = new Map<string, Match[]>();
+    for (const match of filteredMatches) {
+      const dayKey = match.kickoffUtc ? toLocalDateKey(match.kickoffUtc) : 'undated';
+      const bucket = groups.get(dayKey);
+      if (bucket) bucket.push(match);
+      else groups.set(dayKey, [match]);
+    }
+    return [...groups.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([dayKey, data]) => ({
+        key: dayKey,
+        title: dayKey === 'undated'
+          ? t('matches.pickDate')
+          : formatKickoffDate(`${dayKey}T12:00:00.000Z`, preferences.language),
+        data,
+      }));
+  }, [dateMode, dateFromUtc, dateToUtc, filteredMatches, preferences.language, t]);
   const normalizedCompetitionSearch = competitionSearch.trim().toLocaleLowerCase();
   const pickerGroups = PICKER_CATEGORY_ORDER.map(category => ({
     category,
@@ -90,9 +142,44 @@ export function MatchesHomeScreen({ navigation }: Props) {
         || `${competition.label} ${competition.names.join(' ')}`.toLocaleLowerCase().includes(normalizedCompetitionSearch))),
   })).filter(group => group.competitions.length > 0);
   const locale = preferences.language === 'ar' ? 'ar' : 'en-US';
-  const titleDate = new Intl.DateTimeFormat(locale, { weekday: 'long', month: 'long', day: 'numeric' }).format(selectedDate);
+  const dayFormatter = new Intl.DateTimeFormat(locale, { weekday: 'long', month: 'long', day: 'numeric' });
+  const shortFormatter = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' });
+  const titleDate = dateMode === 'day'
+    ? dayFormatter.format(selectedDate)
+    : t('matches.rangeSpan', { from: shortFormatter.format(rangeStart), to: shortFormatter.format(rangeEnd) });
 
-  const goToWeekend = () => setSelectedDate(upcomingWeekendRange().start);
+  const goToWeekend = () => {
+    setDateMode('day');
+    setSelectedDate(upcomingWeekendRange().start);
+  };
+
+  const applyPreset = (preset: DateRangePreset) => {
+    const { start, end } = buildRange(preset);
+    setRangeStart(start);
+    setRangeEnd(end);
+    setActivePreset(preset);
+    setRangeAnchor(null);
+  };
+
+  const onCalendarSelect = (date: Date) => {
+    if (dateMode === 'day') {
+      setSelectedDate(startOfLocalDay(date));
+      setCalendarOpen(false);
+      return;
+    }
+    if (!rangeAnchor) {
+      setRangeAnchor(date);
+      setRangeStart(startOfLocalDay(date));
+      setRangeEnd(endOfLocalDay(date));
+      return;
+    }
+    const { start, end } = clampRange(rangeAnchor, date, MAX_RANGE_DAYS);
+    setRangeStart(start);
+    setRangeEnd(end);
+    setRangeAnchor(null);
+    setActivePreset(null);
+    setCalendarOpen(false);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -110,8 +197,9 @@ export function MatchesHomeScreen({ navigation }: Props) {
     return () => { mounted = false; };
   }, [result.matches]);
 
-  const renderItem = ({ item, index }: { item: Match; index: number }) => {
+  const renderItem = ({ item, index, section }: { item: Match; index: number; section: { key: string } }) => {
     const reminder = getReminderFor(item.id);
+    const showAd = index === 1 && section.key === sections[0]?.key;
     return (
       <>
         <MatchCard
@@ -127,7 +215,7 @@ export function MatchesHomeScreen({ navigation }: Props) {
           else setReminder(item, preferences.defaultReminderOffsetMinutes);
         } : undefined}
         />
-        {index === 1 ? <InFeedNativeAd compact /> : null}
+        {showAd ? <InFeedNativeAd compact /> : null}
       </>
     );
   };
@@ -185,46 +273,97 @@ export function MatchesHomeScreen({ navigation }: Props) {
         </Pressable>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.dateStrip}
-        contentContainerStyle={styles.dateContent}
-      >
-        {dateStrip.map(date => {
-          const selected = date.toDateString() === selectedDate.toDateString();
-          return (
+      <View style={styles.dateModeRow}>
+        <View style={[styles.segment, { borderColor: theme.colors.border }]}>
+          {(['day', 'range'] as DateMode[]).map(mode => (
             <Pressable
-              key={date.toISOString()}
+              key={mode}
               accessibilityRole="button"
-              accessibilityState={{ selected }}
-              onPress={() => setSelectedDate(date)}
-              style={({ pressed }) => [
-                styles.dateTile,
-                {
-                  backgroundColor: selected ? theme.colors.accent : theme.colors.surface,
-                  borderColor: selected ? theme.colors.accent : theme.colors.border,
-                  opacity: pressed ? 0.72 : 1,
-                },
-              ]}
+              accessibilityState={{ selected: dateMode === mode }}
+              onPress={() => setDateMode(mode)}
+              style={[styles.segmentBtn, dateMode === mode && { backgroundColor: theme.colors.accent }]}
             >
-              <Text style={[styles.dateWeekday, { color: selected ? theme.colors.accentText : theme.colors.textMuted }]}>
-                {new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date)}
-              </Text>
-              <Text style={[styles.dateDay, { color: selected ? theme.colors.accentText : theme.colors.textPrimary }]}>
-                {new Intl.DateTimeFormat(locale, { day: 'numeric' }).format(date)}
+              <Text style={[styles.segmentText, { color: dateMode === mode ? theme.colors.accentText : theme.colors.textSecondary }]}>
+                {t(mode === 'day' ? 'matches.dateModeDay' : 'matches.dateModeRange')}
               </Text>
             </Pressable>
-          );
-        })}
+          ))}
+        </View>
         <Pressable
-          onPress={goToWeekend}
-          style={({ pressed }) => [styles.weekendTile, { backgroundColor: theme.colors.accentSoft, opacity: pressed ? 0.7 : 1 }]}
+          accessibilityRole="button"
+          accessibilityLabel={dateMode === 'day' ? t('matches.jumpToDate') : t('matches.pickRange')}
+          onPress={() => { setRangeAnchor(null); setCalendarOpen(true); }}
+          style={({ pressed }) => [styles.calendarBtn, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: pressed ? 0.7 : 1 }]}
         >
-          <AppIcon name="calendar" size={17} color={theme.colors.accent} />
-          <Text style={[styles.weekendLabel, { color: theme.colors.accent }]}>{t('matches.weekend')}</Text>
+          <AppIcon name="calendar" size={18} color={theme.colors.accent} />
         </Pressable>
-      </ScrollView>
+      </View>
+
+      {dateMode === 'day' ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.dateStrip}
+          contentContainerStyle={styles.dateContent}
+        >
+          {dateStrip.map(date => {
+            const selected = date.toDateString() === selectedDate.toDateString();
+            return (
+              <Pressable
+                key={date.toISOString()}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                onPress={() => setSelectedDate(date)}
+                style={({ pressed }) => [
+                  styles.dateTile,
+                  {
+                    backgroundColor: selected ? theme.colors.accent : theme.colors.surface,
+                    borderColor: selected ? theme.colors.accent : theme.colors.border,
+                    opacity: pressed ? 0.72 : 1,
+                  },
+                ]}
+              >
+                <Text style={[styles.dateWeekday, { color: selected ? theme.colors.accentText : theme.colors.textMuted }]}>
+                  {new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date)}
+                </Text>
+                <Text style={[styles.dateDay, { color: selected ? theme.colors.accentText : theme.colors.textPrimary }]}>
+                  {new Intl.DateTimeFormat(locale, { day: 'numeric' }).format(date)}
+                </Text>
+              </Pressable>
+            );
+          })}
+          <Pressable
+            onPress={goToWeekend}
+            style={({ pressed }) => [styles.weekendTile, { backgroundColor: theme.colors.accentSoft, opacity: pressed ? 0.7 : 1 }]}
+          >
+            <AppIcon name="calendar" size={17} color={theme.colors.accent} />
+            <Text style={[styles.weekendLabel, { color: theme.colors.accent }]}>{t('matches.weekend')}</Text>
+          </Pressable>
+        </ScrollView>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.dateStrip}
+          contentContainerStyle={styles.statusContent}
+        >
+          {RANGE_PRESETS.map(preset => (
+            <FilterChip
+              key={preset}
+              compact
+              label={t(PRESET_LABEL[preset])}
+              active={activePreset === preset}
+              onPress={() => applyPreset(preset)}
+            />
+          ))}
+          <FilterChip
+            compact
+            label={t('matches.rangeCustom')}
+            active={activePreset === null}
+            onPress={() => { setRangeAnchor(null); setCalendarOpen(true); }}
+          />
+        </ScrollView>
+      )}
 
       <ScrollView
         horizontal
@@ -258,10 +397,16 @@ export function MatchesHomeScreen({ navigation }: Props) {
       {result.loading ? (
         <LoadingState label={t('common.loading')} />
       ) : (
-        <FlatList
-          data={filteredMatches}
+        <SectionList
+          sections={sections}
           keyExtractor={item => item.id}
           renderItem={renderItem}
+          renderSectionHeader={({ section }) => (section.title ? (
+            <Text style={[styles.sectionHeader, { color: theme.colors.textMuted, backgroundColor: theme.colors.background }]}>
+              {section.title}
+            </Text>
+          ) : null)}
+          stickySectionHeadersEnabled={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[styles.list, filteredMatches.length === 0 && styles.emptyList]}
           refreshing={result.refreshing}
@@ -275,6 +420,32 @@ export function MatchesHomeScreen({ navigation }: Props) {
           }
         />
       )}
+
+      <SafeModalContainer visible={calendarOpen} onRequestClose={() => setCalendarOpen(false)}>
+        <View style={styles.pickerHeader}>
+          <View>
+            <Text style={[styles.pickerTitle, { color: theme.colors.textPrimary }]}>
+              {dateMode === 'day' ? t('matches.pickDate') : t('matches.pickRange')}
+            </Text>
+            {dateMode === 'range' ? (
+              <Text style={[styles.pickerSubtitle, { color: theme.colors.textMuted }]}>
+                {t('matches.rangeSpan', { from: shortFormatter.format(rangeStart), to: shortFormatter.format(rangeEnd) })}
+              </Text>
+            ) : null}
+          </View>
+          <Pressable onPress={() => setCalendarOpen(false)} hitSlop={8}>
+            <Text style={[styles.pickerDone, { color: theme.colors.accent }]}>{t('common.done')}</Text>
+          </Pressable>
+        </View>
+        <MonthCalendar
+          mode={dateMode === 'day' ? 'single' : 'range'}
+          value={dateMode === 'day' ? selectedDate : null}
+          rangeStart={dateMode === 'range' ? rangeStart : null}
+          rangeEnd={dateMode === 'range' ? rangeEnd : null}
+          onSelect={onCalendarSelect}
+          locale={locale}
+        />
+      </SafeModalContainer>
 
       <SafeModalContainer visible={competitionPickerOpen} onRequestClose={() => setCompetitionPickerOpen(false)}>
         <View style={styles.pickerHeader}>
@@ -355,6 +526,12 @@ const styles = StyleSheet.create({
   competitionSelectorLabel: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
   competitionSelectorValue: { fontSize: 14, lineHeight: 19, fontWeight: '900', marginTop: 1 },
   selectorChevron: { transform: [{ rotate: '90deg' }] },
+  dateModeRow: { paddingHorizontal: 16, paddingTop: 8, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  segment: { flexDirection: 'row', borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, overflow: 'hidden' },
+  segmentBtn: { paddingHorizontal: 16, paddingVertical: 8, minWidth: 74, alignItems: 'center' },
+  segmentText: { fontSize: 12, fontWeight: '800' },
+  calendarBtn: { width: 40, height: 36, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  sectionHeader: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.6, paddingVertical: 6, marginTop: 4 },
   dateStrip: { height: 76, flexGrow: 0, flexShrink: 0 },
   dateContent: { paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' },
   dateTile: { width: 55, height: 55, borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },

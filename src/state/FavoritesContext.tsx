@@ -5,14 +5,19 @@ import {
   removeFavorite,
   reorderFavorites,
 } from '../storage/repositories/favoritesRepo';
-import type { Favorite } from '../types/domain';
+import { deletePlayerMeta, upsertPlayerMeta } from '../storage/repositories/followedPlayersRepo';
+import type { Favorite, FollowedPlayerMeta } from '../types/domain';
+
+type PlayerMetaInput = Omit<FollowedPlayerMeta, 'updatedAt'>;
 
 interface FavoritesContextValue {
   favoriteCompetitionIds: Set<string>;
   favoriteTeamIds: Set<string>;
+  favoritePlayerIds: Set<string>;
   loading: boolean;
   toggleCompetition: (id: string) => Promise<void>;
   toggleTeam: (id: string) => Promise<void>;
+  togglePlayer: (id: string, meta?: PlayerMetaInput) => Promise<void>;
   reorderCompetitions: (orderedIds: string[]) => Promise<void>;
   reorderTeams: (orderedIds: string[]) => Promise<void>;
   refresh: () => Promise<void>;
@@ -21,9 +26,11 @@ interface FavoritesContextValue {
 const FavoritesContext = createContext<FavoritesContextValue>({
   favoriteCompetitionIds: new Set(),
   favoriteTeamIds: new Set(),
+  favoritePlayerIds: new Set(),
   loading: true,
   toggleCompetition: async () => undefined,
   toggleTeam: async () => undefined,
+  togglePlayer: async () => undefined,
   reorderCompetitions: async () => undefined,
   reorderTeams: async () => undefined,
   refresh: async () => undefined,
@@ -63,6 +70,18 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     await refresh();
   }, [favorites, refresh]);
 
+  const togglePlayer = useCallback(async (id: string, meta?: PlayerMetaInput) => {
+    const already = favorites.some(f => f.entityType === 'player' && f.entityId === id);
+    if (already) {
+      await removeFavorite('player', id);
+      await deletePlayerMeta(id).catch(() => undefined);
+    } else {
+      await addFavorite('player', id);
+      if (meta) await upsertPlayerMeta(meta).catch(() => undefined);
+    }
+    await refresh();
+  }, [favorites, refresh]);
+
   const reorderCompetitions = useCallback(async (orderedIds: string[]) => {
     await reorderFavorites('competition', orderedIds);
     await refresh();
@@ -75,10 +94,14 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
 
   const favoriteCompetitionIds = new Set(favorites.filter(f => f.entityType === 'competition').map(f => f.entityId));
   const favoriteTeamIds = new Set(favorites.filter(f => f.entityType === 'team').map(f => f.entityId));
+  const favoritePlayerIds = new Set(favorites.filter(f => f.entityType === 'player').map(f => f.entityId));
 
   return (
     <FavoritesContext.Provider
-      value={{ favoriteCompetitionIds, favoriteTeamIds, loading, toggleCompetition, toggleTeam, reorderCompetitions, reorderTeams, refresh }}
+      value={{
+        favoriteCompetitionIds, favoriteTeamIds, favoritePlayerIds, loading,
+        toggleCompetition, toggleTeam, togglePlayer, reorderCompetitions, reorderTeams, refresh,
+      }}
     >
       {children}
     </FavoritesContext.Provider>

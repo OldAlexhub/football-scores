@@ -1,3 +1,4 @@
+import { normalizeDefaultTab } from '../navigation/defaultTab';
 import { getJson, preferencesStorage, setJson } from './mmkvStorage';
 import type { UserPreferences } from '../types/domain';
 
@@ -10,13 +11,15 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   clock: '24h',
   defaultReminderOffsetMinutes: 60,
   defaultSpoilerShieldEnabled: false,
-  defaultOpeningTab: 'matchday',
+  defaultOpeningTab: 'home',
   showCompletedMatches: true,
   notificationsEnabled: false,
 };
 
 export function getPreferences(): UserPreferences {
-  return getJson(preferencesStorage, KEY, DEFAULT_PREFERENCES);
+  const stored = getJson(preferencesStorage, KEY, DEFAULT_PREFERENCES);
+  // Coerce a legacy opening-tab value from an earlier build.
+  return { ...stored, defaultOpeningTab: normalizeDefaultTab(stored.defaultOpeningTab) };
 }
 
 export function savePreferences(preferences: UserPreferences): void {

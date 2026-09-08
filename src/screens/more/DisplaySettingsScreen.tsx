@@ -6,10 +6,11 @@ import { ScreenContainer } from '../../components/ScreenContainer';
 import { Card, SectionHeader } from '../../components/ui';
 import { usePreferences } from '../../state/PreferencesContext';
 import { useTheme } from '../../theme/ThemeProvider';
-import type { ClockPreference, DefaultTab, ThemePreference } from '../../types/domain';
+import type { ClockPreference, ThemePreference } from '../../types/domain';
+import { DEFAULT_TAB_OPTIONS } from '../../navigation/defaultTab';
 
 const THEME_OPTIONS: ThemePreference[] = ['system', 'light', 'dark'];
-const TAB_OPTIONS: DefaultTab[] = ['matches', 'insights', 'more'];
+const TAB_OPTIONS = DEFAULT_TAB_OPTIONS;
 
 export function DisplaySettingsScreen() {
   const { t } = useTranslation();

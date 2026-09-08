@@ -1,7 +1,7 @@
 import { useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AppIcon, type AppIconName } from '../../components/AppIcon';
 import { TeamCrest } from '../../components/TeamCrest';
@@ -20,16 +20,18 @@ import { usePreferences } from '../../state/PreferencesContext';
 import { useReminders } from '../../state/RemindersContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { formatKickoffDate, formatKickoffTime } from '../../utils/dates';
-import type { LineupPlayer, Match, MatchAnalysis, MatchEventType, MatchPrediction, MatchStatistic } from '../../types/domain';
+import type { LineupPlayer, Match, MatchAnalysis, MatchEventType, MatchPrediction, MatchStatistic, ProviderId } from '../../types/domain';
 
-const ANALYSIS_SOURCE_LABEL = {
+const ANALYSIS_SOURCE_LABEL: Record<ProviderId, string> = {
   espn: 'ESPN',
   'api-football': 'API-Football',
   thesportsdb: 'TheSportsDB',
+  openligadb: 'OpenLigaDB',
   'football-data-org': 'football-data.org',
   openfootball: 'OpenFootball',
   cached: 'Saved data',
-} as const;
+  merged: 'Multiple sources',
+};
 
 type Nav = NativeStackNavigationProp<MatchesStackParamList, 'MatchDetails'>;
 
@@ -272,7 +274,11 @@ export function MatchDetailsScreen() {
               <View style={styles.analysisBlock}>
                 <Text style={[styles.subheading, { color: theme.colors.textPrimary }]}>{t('matchDetails.topPerformers')}</Text>
                 {analysis.topPerformers.map(player => (
-                  <View key={player.playerId} style={styles.playerRow}>
+                  <Pressable
+                    key={player.playerId}
+                    style={styles.playerRow}
+                    onPress={() => navigation.navigate('PlayerDetails', { query: player.playerName })}
+                  >
                     {player.playerPhotoUrl ? <Image source={{ uri: player.playerPhotoUrl }} style={styles.playerPhoto} /> : (
                       <View style={[styles.playerPhoto, styles.playerFallback, { backgroundColor: theme.colors.surfaceAlt }]}><AppIcon name="users" size={18} color={theme.colors.textMuted} /></View>
                     )}
@@ -281,7 +287,7 @@ export function MatchDetailsScreen() {
                       <Text style={[styles.playerMeta, { color: theme.colors.textMuted }]}>{player.teamName} · {player.goals} G · {player.assists} A</Text>
                     </View>
                     {player.rating != null ? <Text style={[styles.rating, { color: theme.colors.accent, backgroundColor: theme.colors.accentSoft }]}>{player.rating.toFixed(1)}</Text> : null}
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             ) : null}
@@ -296,7 +302,10 @@ export function MatchDetailsScreen() {
                       <Text style={[styles.lineupTeam, { color: theme.colors.textPrimary }]}>{lineup.teamName}</Text>
                       <Text style={[styles.formation, { color: theme.colors.accent }]}>{lineup.formation ?? ''}</Text>
                     </View>
-                    <FormationPitch players={lineup.starters} />
+                    <FormationPitch
+                      players={lineup.starters}
+                      onPlayerPress={name => navigation.navigate('PlayerDetails', { query: name })}
+                    />
                     {lineup.coachName ? (
                       <Text style={[styles.coachName, { color: theme.colors.textMuted }]}>{t('matchDetails.coach')}: {lineup.coachName}</Text>
                     ) : null}
@@ -409,7 +418,7 @@ function StatComparison({ statistic }: { statistic: MatchStatistic }) {
   );
 }
 
-function FormationPitch({ players }: { players: LineupPlayer[] }) {
+function FormationPitch({ players, onPlayerPress }: { players: LineupPlayer[]; onPlayerPress?: (name: string) => void }) {
   const theme = useTheme();
   const rows = new Map<number, LineupPlayer[]>();
   players.forEach((player, index) => {
@@ -423,12 +432,12 @@ function FormationPitch({ players }: { players: LineupPlayer[] }) {
       {[...rows.entries()].sort(([a], [b]) => a - b).map(([row, rowPlayers]) => (
         <View key={row} style={styles.pitchRow}>
           {rowPlayers.map(player => (
-            <View key={player.id} style={styles.pitchPlayer}>
+            <Pressable key={player.id} style={styles.pitchPlayer} onPress={() => onPlayerPress?.(player.name)}>
               <View style={[styles.playerNumber, { backgroundColor: theme.colors.surface }]}>
                 <Text style={[styles.playerNumberText, { color: theme.colors.accent }]}>{player.number ?? '\u2022'}</Text>
               </View>
               <Text style={styles.pitchPlayerName} numberOfLines={1}>{player.name.split(' ').pop()}</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
       ))}

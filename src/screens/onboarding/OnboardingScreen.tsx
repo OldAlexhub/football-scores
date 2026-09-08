@@ -21,7 +21,7 @@ export function OnboardingScreen() {
   useSuppressBanner();
 
   const finish = async () => {
-    await update({ onboardingCompleted: true, defaultOpeningTab: 'matches' });
+    await update({ onboardingCompleted: true, defaultOpeningTab: 'home' });
     navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
   };
 

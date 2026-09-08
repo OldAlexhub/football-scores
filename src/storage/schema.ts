@@ -4,7 +4,7 @@
  * shipped — add a new one instead, so devices upgrading from any prior
  * version replay the same deterministic steps.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const MIGRATIONS: string[][] = [
   // Migration 1 — initial schema
@@ -78,5 +78,19 @@ export const MIGRATIONS: string[][] = [
     `CREATE INDEX IF NOT EXISTS idx_reminders_match ON reminders(match_id);`,
     `CREATE INDEX IF NOT EXISTS idx_predictions_match ON predictions(match_id);`,
     `CREATE INDEX IF NOT EXISTS idx_provider_cache_expiry ON provider_cache(expires_at_utc);`,
+  ],
+  // Migration 2 — followed-player metadata (denormalised so the Players tab
+  // and Home "Following" render without a network round-trip).
+  [
+    `CREATE TABLE IF NOT EXISTS followed_player_meta (
+      player_id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      photo_url TEXT,
+      position TEXT,
+      nationality TEXT,
+      club_name TEXT,
+      club_team_id TEXT,
+      updated_at TEXT NOT NULL
+    );`,
   ],
 ];

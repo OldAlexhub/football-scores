@@ -1,7 +1,19 @@
-import type { Competition, Match, StandingRow, Team } from '../types/domain';
+import type {
+  Competition,
+  Match,
+  PlayerCareerEntry,
+  PlayerHonour,
+  PlayerProfile,
+  PlayerSearchResult,
+  StandingRow,
+  Team,
+} from '../types/domain';
 import { COMPETITION_BY_SPORTS_DB_ID, COMPETITION_CATALOG, DEFAULT_COMPETITION_KEYS } from '../config/competitionCatalog';
 import { THE_SPORTS_DB_CAPABILITIES } from './capabilities';
+import { MAX_RANGE_DAYS } from './cacheKeys';
+import { mapWithConcurrency } from './concurrency';
 import { fetchJson } from './httpClient';
+import { recordRequest } from './rateBudget';
 import type { FootballDataProvider, FormResult, HeadToHeadResult, MatchesQuery } from './types';
 
 const BASE_URL = 'https://www.thesportsdb.com/api/v1/json/123';
@@ -17,6 +29,24 @@ function scoreValue(value: unknown): number | null {
   if (value == null || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseHeightCm(value: unknown): number | null {
+  const text = String(value ?? '');
+  const metres = text.match(/([\d.]+)\s*m/i);
+  if (metres) return Math.round(parseFloat(metres[1]) * 100);
+  const feet = text.match(/(\d+)\s*ft\s*(\d+)?/i);
+  if (feet) return Math.round((Number(feet[1]) * 12 + Number(feet[2] ?? 0)) * 2.54);
+  return null;
+}
+
+function parseWeightKg(value: unknown): number | null {
+  const text = String(value ?? '');
+  const kg = text.match(/([\d.]+)\s*kg/i);
+  if (kg) return Math.round(parseFloat(kg[1]));
+  const lbs = text.match(/([\d.]+)\s*lb/i);
+  if (lbs) return Math.round(parseFloat(lbs[1]) * 0.453592);
+  return null;
 }
 
 function statusFor(rawStatus: unknown): Match['status'] {
@@ -116,7 +146,7 @@ class TheSportsDbProvider implements FootballDataProvider {
     const dates: string[] = [];
     let cursor = new Date(query.dateFromUtc.slice(0, 10));
     const end = new Date(query.dateToUtc.slice(0, 10));
-    while (cursor <= end && dates.length < 7) {
+    while (cursor <= end && dates.length < MAX_RANGE_DAYS) {
       dates.push(cursor.toISOString().slice(0, 10));
       cursor = new Date(cursor.getTime() + 86_400_000);
     }
@@ -124,7 +154,10 @@ class TheSportsDbProvider implements FootballDataProvider {
       ...(query.competitionProviderIds?.length ? [] : [`${BASE_URL}/eventsday.php?d=${date}&s=Soccer`]),
       ...requestedCompetitions.map(competition => `${BASE_URL}/eventsday.php?d=${date}&l=${competition.sportsDbLeagueId}`),
     ]);
-    const responses = await Promise.all(queries.map(url => fetchJson<any>(this.id, url).catch(() => ({ events: [] }))));
+    const responses = await mapWithConcurrency(queries, 4, url => {
+      recordRequest(this.id);
+      return fetchJson<any>(this.id, url).catch(() => ({ events: [] }));
+    });
     const deduplicated = new Map<string, Match>();
     responses.forEach(response => {
       (response.events ?? []).map(mapMatch).forEach((match: Match) => deduplicated.set(match.id, match));
@@ -143,8 +176,90 @@ class TheSportsDbProvider implements FootballDataProvider {
   }
 
   async getMatch(providerMatchId: string): Promise<Match | null> {
+    recordRequest(this.id);
     const response = await fetchJson<any>(this.id, `${BASE_URL}/lookupevent.php?id=${providerMatchId}`);
     return response.events?.[0] ? mapMatch(response.events[0]) : null;
+  }
+
+  async getPlayerSearch(name: string): Promise<PlayerSearchResult[]> {
+    const query = name.trim();
+    if (!query) return [];
+    recordRequest(this.id);
+    const response = await fetchJson<any>(this.id, `${BASE_URL}/searchplayers.php?p=${encodeURIComponent(query)}`)
+      .catch(() => ({ player: [] }));
+    return (response.player ?? [])
+      .filter((raw: any) => (raw.strSport ?? 'Soccer') === 'Soccer')
+      .slice(0, 20)
+      .map((raw: any): PlayerSearchResult => ({
+        id: `thesportsdb:${raw.idPlayer}`,
+        name: raw.strPlayer ?? 'Unknown',
+        photoUrl: raw.strCutout || raw.strThumb || null,
+        nationality: raw.strNationality ?? null,
+        position: raw.strPosition ?? null,
+        currentTeamName: raw.strTeam ?? null,
+        currentTeamId: raw.idTeam ? `thesportsdb:${raw.idTeam}` : null,
+        source: 'thesportsdb',
+      }));
+  }
+
+  async getPlayerProfile(providerPlayerId: string): Promise<PlayerProfile | null> {
+    const id = providerPlayerId.includes(':') ? providerPlayerId.split(':').slice(1).join(':') : providerPlayerId;
+    recordRequest(this.id);
+    const lookup = await fetchJson<any>(this.id, `${BASE_URL}/lookupplayer.php?id=${id}`).catch(() => ({ players: [] }));
+    const raw = lookup.players?.[0];
+    if (!raw) return null;
+
+    const [former, honours] = await Promise.all([
+      fetchJson<any>(this.id, `${BASE_URL}/lookupformerteams.php?id=${id}`).catch(() => ({ formerteams: [] })),
+      fetchJson<any>(this.id, `${BASE_URL}/lookuphonours.php?id=${id}`).catch(() => ({ honours: [] })),
+    ]);
+
+    const career: PlayerCareerEntry[] = (former.formerteams ?? [])
+      .filter((entry: any) => (entry.strSport ?? 'Soccer') === 'Soccer')
+      .map((entry: any): PlayerCareerEntry => ({
+        teamName: entry.strFormerTeam ?? 'Unknown',
+        teamId: entry.idFormerTeam ? `thesportsdb:${entry.idFormerTeam}` : null,
+        fromYear: entry.strJoined ? String(entry.strJoined).slice(0, 4) : null,
+        toYear: entry.strDeparted ? String(entry.strDeparted).slice(0, 4) : null,
+        isLoan: /loan/i.test(String(entry.strFormerTeam ?? '')),
+      }));
+
+    const honourList: PlayerHonour[] = (honours.honours ?? [])
+      .filter((entry: any) => (entry.strSport ?? 'Soccer') === 'Soccer')
+      .map((entry: any): PlayerHonour => ({
+        title: entry.strHonour ?? 'Honour',
+        season: entry.strSeason ?? null,
+        teamName: entry.strTeam ?? null,
+      }));
+
+    const socials: { label: string; url: string }[] = [];
+    const withProtocol = (value: string) => (/^https?:\/\//i.test(value) ? value : `https://${value}`);
+    if (raw.strTwitter) socials.push({ label: 'Twitter/X', url: withProtocol(raw.strTwitter) });
+    if (raw.strInstagram) socials.push({ label: 'Instagram', url: withProtocol(raw.strInstagram) });
+    if (raw.strFacebook) socials.push({ label: 'Facebook', url: withProtocol(raw.strFacebook) });
+
+    return {
+      id: `thesportsdb:${raw.idPlayer}`,
+      name: raw.strPlayer ?? 'Unknown',
+      fullName: raw.strPlayerAlternate || raw.strPlayer || null,
+      photoUrl: raw.strCutout || raw.strThumb || null,
+      nationality: raw.strNationality ?? null,
+      position: raw.strPosition ?? null,
+      birthDate: raw.dateBorn && raw.dateBorn !== '0000-00-00' ? raw.dateBorn : null,
+      birthPlace: raw.strBirthLocation ?? null,
+      heightCm: parseHeightCm(raw.strHeight),
+      weightKg: parseWeightKg(raw.strWeight),
+      currentTeamName: raw.strTeam ?? null,
+      currentTeamId: raw.idTeam ? `thesportsdb:${raw.idTeam}` : null,
+      bio: raw.strDescriptionEN ? String(raw.strDescriptionEN).trim() : null,
+      bioSource: raw.strDescriptionEN ? 'TheSportsDB' : null,
+      bioSourceUrl: raw.strWebsite ? withProtocol(raw.strWebsite) : null,
+      career,
+      honours: honourList,
+      socials,
+      sources: ['thesportsdb'],
+      fetchedAtUtc: new Date().toISOString(),
+    };
   }
 
   async getStandings(): Promise<StandingRow[]> { return []; }

@@ -1,17 +1,29 @@
 import { runExecute, runQuery } from './db';
 import { getPreferences, savePreferences } from './preferencesRepo';
-import type { BackupMetadata, CompleteBackup, Favorite, Reminder, WatchPlanItem } from '../types/domain';
+import type { BackupMetadata, CompleteBackup, Favorite, FollowedPlayerMeta, Reminder, WatchPlanItem } from '../types/domain';
 import type { PredictionRecord } from './repositories/predictionsRepo';
 
 const APP_VERSION = '1.0.0';
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 export async function buildCompleteBackup(): Promise<CompleteBackup> {
   const favorites = await runQuery<any>('SELECT * FROM favorites');
   const watchPlanItems = await runQuery<any>('SELECT * FROM watch_plan_items');
   const reminders = await runQuery<any>('SELECT * FROM reminders');
   const predictions = await runQuery<any>('SELECT * FROM predictions');
+  const followedPlayerMetaRows = await runQuery<any>('SELECT * FROM followed_player_meta').catch(() => []);
   const preferences = getPreferences();
+
+  const followedPlayerMeta: FollowedPlayerMeta[] = followedPlayerMetaRows.map((row: any) => ({
+    playerId: row.player_id,
+    name: row.name,
+    photoUrl: row.photo_url ?? null,
+    position: row.position ?? null,
+    nationality: row.nationality ?? null,
+    clubName: row.club_name ?? null,
+    clubTeamId: row.club_team_id ?? null,
+    updatedAt: row.updated_at,
+  }));
 
   const metadata: BackupMetadata = {
     appVersion: APP_VERSION,
@@ -22,6 +34,7 @@ export async function buildCompleteBackup(): Promise<CompleteBackup> {
       watchPlanItems: watchPlanItems.length,
       reminders: reminders.length,
       predictions: predictions.length,
+      followedPlayerMeta: followedPlayerMeta.length,
     },
   };
 
@@ -31,6 +44,7 @@ export async function buildCompleteBackup(): Promise<CompleteBackup> {
     watchPlanItems: watchPlanItems as WatchPlanItem[],
     reminders: reminders as Reminder[],
     predictions: predictions as PredictionRecord[],
+    followedPlayerMeta,
     preferences,
   };
 }
@@ -76,14 +90,26 @@ export async function restoreCompleteBackup(backup: CompleteBackup): Promise<voi
     watchPlanItems: await runQuery<any>('SELECT * FROM watch_plan_items'),
     reminders: await runQuery<any>('SELECT * FROM reminders'),
     predictions: await runQuery<any>('SELECT * FROM predictions'),
+    followedPlayerMeta: await runQuery<any>('SELECT * FROM followed_player_meta').catch(() => []),
     preferences: getPreferences(),
   };
+
+  const insertPlayerMeta = (m: any) => runExecute(
+    `INSERT INTO followed_player_meta (player_id, name, photo_url, position, nationality, club_name, club_team_id, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      m.playerId ?? m.player_id, m.name, m.photoUrl ?? m.photo_url ?? null,
+      m.position ?? null, m.nationality ?? null, m.clubName ?? m.club_name ?? null,
+      m.clubTeamId ?? m.club_team_id ?? null, m.updatedAt ?? m.updated_at ?? new Date().toISOString(),
+    ],
+  );
 
   try {
     await runExecute('DELETE FROM favorites');
     await runExecute('DELETE FROM watch_plan_items');
     await runExecute('DELETE FROM reminders');
     await runExecute('DELETE FROM predictions');
+    await runExecute('DELETE FROM followed_player_meta');
 
     for (const f of backup.favorites) {
       await runExecute(
@@ -146,12 +172,20 @@ export async function restoreCompleteBackup(backup: CompleteBackup): Promise<voi
       );
     }
 
+    for (const m of backup.followedPlayerMeta ?? []) {
+      await insertPlayerMeta(m);
+    }
+
     savePreferences(backup.preferences);
   } catch (error) {
     await runExecute('DELETE FROM favorites');
     await runExecute('DELETE FROM watch_plan_items');
     await runExecute('DELETE FROM reminders');
     await runExecute('DELETE FROM predictions');
+    await runExecute('DELETE FROM followed_player_meta');
+    for (const m of rollback.followedPlayerMeta) {
+      await insertPlayerMeta(m);
+    }
     for (const f of rollback.favorites) {
       await runExecute(
         'INSERT INTO favorites (id, entity_type, entity_id, order_index, created_at) VALUES (?, ?, ?, ?, ?)',

@@ -3,6 +3,8 @@ import type {
   Match,
   MatchAnalysis,
   MatchPrediction,
+  PlayerProfile,
+  PlayerSearchResult,
   ProviderCapabilities,
   ProviderId,
   StandingRow,
@@ -70,4 +72,6 @@ export interface FootballDataProvider {
   getForm(teamProviderId: string): Promise<FormResult>;
   getPrediction?(providerMatchId: string, match?: Match): Promise<MatchPrediction | null>;
   getMatchAnalysis?(providerMatchId: string, match?: Match): Promise<MatchAnalysis | null>;
+  getPlayerSearch?(name: string): Promise<PlayerSearchResult[]>;
+  getPlayerProfile?(providerPlayerId: string): Promise<PlayerProfile | null>;
 }

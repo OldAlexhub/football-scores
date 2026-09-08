@@ -29,10 +29,22 @@ export const linkingConfig = {
     screens: {
       MainTabs: {
         screens: {
+          HomeTab: {
+            screens: {
+              HomeDashboard: 'home',
+              News: 'news',
+              PlayerDetails: 'player/:playerId',
+            },
+          },
           MatchesTab: {
             screens: {
               MatchesHome: 'matches',
               MatchDetails: 'match/:matchId',
+            },
+          },
+          PlayersTab: {
+            screens: {
+              PlayersHome: 'players',
             },
           },
         },

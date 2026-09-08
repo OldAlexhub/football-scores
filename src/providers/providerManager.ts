@@ -1,10 +1,21 @@
+import {
+  COMPETITION_BY_KEY,
+  DEFAULT_COMPETITION_KEYS,
+  resolveCatalogCompetition,
+  type CompetitionCatalogItem,
+} from '../config/competitionCatalog';
 import { readCache, writeCache } from '../storage/repositories/providerCacheRepo';
 import type { Competition, Match, MatchAnalysis, MatchPrediction, ProviderId, StandingRow, Team } from '../types/domain';
 import { apiFootballProvider } from './apiFootballProvider';
-import { cacheKeys, CACHE_TTL_MS } from './cacheKeys';
+import { cacheKeys, CACHE_TTL_MS, HARD_MAX_RANGE_DAYS } from './cacheKeys';
 import { cachedProvider } from './cachedProvider';
+import { withTimeout } from './concurrency';
 import { footballDataOrgProvider } from './footballDataOrgProvider';
+import { mergeMatches } from './matchMerge';
+import { sameFixture } from './nameMatch';
 import { openFootballProvider } from './openFootballProvider';
+import { openLigaDbProvider } from './openLigaDbProvider';
+import { nearSoftCap } from './rateBudget';
 import { theSportsDbProvider } from './theSportsDbProvider';
 import { espnProvider } from './espnProvider';
 import type { FootballDataProvider, FormResult, HeadToHeadResult, MatchesQuery } from './types';
@@ -14,9 +25,22 @@ export const LIVE_PROVIDERS: FootballDataProvider[] = [
   apiFootballProvider,
   footballDataOrgProvider,
   openFootballProvider,
+  openLigaDbProvider,
   theSportsDbProvider,
   espnProvider,
 ];
+
+/** Providers merged (not fallen-back) for fixture lists — order is irrelevant here. */
+const MATCH_MERGE_PROVIDERS: FootballDataProvider[] = [
+  espnProvider,
+  openFootballProvider,
+  openLigaDbProvider,
+  theSportsDbProvider,
+  apiFootballProvider,
+  footballDataOrgProvider,
+];
+
+const PROVIDER_TIMEOUT_MS = 12_000;
 
 export interface ProviderHealth {
   providerId: ProviderId;
@@ -31,7 +55,9 @@ const health: Record<ProviderId, ProviderHealth> = {
   openfootball: { providerId: 'openfootball', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
   thesportsdb: { providerId: 'thesportsdb', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
   espn: { providerId: 'espn', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
+  openligadb: { providerId: 'openligadb', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
   cached: { providerId: 'cached', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
+  merged: { providerId: 'merged', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
 };
 
 export function getProviderHealth(): ProviderHealth[] {
@@ -129,21 +155,135 @@ async function withFallback<T>(
   };
 }
 
-export async function fetchMatches(query: MatchesQuery): Promise<SourcedResult<Match[]>> {
+function resolveCatalogForMatch(match: Match): CompetitionCatalogItem | null {
+  return (
+    resolveCatalogCompetition(match.catalogKey) ??
+    resolveCatalogCompetition(match.competitionId) ??
+    resolveCatalogCompetition(match.competitionName)
+  );
+}
+
+/**
+ * Translate the merge pipeline's catalog-key scope into each adapter's own
+ * identifier dialect. An empty `keys` list means "all competitions" — every
+ * adapter has its own sensible default for that case.
+ */
+function subQueryForProvider(provider: FootballDataProvider, keys: string[], base: MatchesQuery): MatchesQuery {
+  const pick = <T>(get: (item: CompetitionCatalogItem) => T | null | undefined): T[] =>
+    keys.map(key => COMPETITION_BY_KEY.get(key)).flatMap(item => {
+      const value = item ? get(item) : null;
+      return value == null ? [] : [value];
+    });
+
+  if (provider.id === 'espn' || provider.id === 'openligadb') {
+    return { ...base, competitionProviderIds: keys.length ? keys : undefined };
+  }
+  if (provider.id === 'thesportsdb') {
+    // No scope → let the adapter run its worldwide "all soccer today" sweep.
+    if (!keys.length) return { ...base, competitionProviderIds: undefined };
+    return { ...base, competitionProviderIds: pick(item => item.canonicalId) };
+  }
+  if (provider.id === 'openfootball') {
+    const source = keys.length ? keys : [...DEFAULT_COMPETITION_KEYS];
+    const codes = source
+      .map(key => COMPETITION_BY_KEY.get(key)?.openFootballCode)
+      .filter((code): code is string => !!code);
+    return { ...base, competitionProviderIds: codes };
+  }
+  // api-football / football-data.org: native numeric ids, only reached when configured.
+  const apiIds = pick(item => item.apiFootballId).map(String);
+  return { ...base, competitionProviderIds: apiIds.length ? apiIds : undefined };
+}
+
+function clampRange(query: MatchesQuery): MatchesQuery {
+  const from = new Date(query.dateFromUtc);
+  const to = new Date(query.dateToUtc);
+  const spanDays = (to.getTime() - from.getTime()) / 86_400_000;
+  if (spanDays <= HARD_MAX_RANGE_DAYS) return query;
+  return { ...query, dateToUtc: new Date(from.getTime() + HARD_MAX_RANGE_DAYS * 86_400_000).toISOString() };
+}
+
+export async function fetchMatches(rawQuery: MatchesQuery): Promise<SourcedResult<Match[]>> {
+  const query = clampRange(rawQuery);
+  const cacheKey = cacheKeys.matches(query.dateFromUtc, query.dateToUtc, query.competitionProviderIds);
+  const prevCache = await readCache<Match[]>(cacheKey);
+
+  if (query.forceRefresh !== true && prevCache && !prevCache.isStale && prevCache.payload.length > 0) {
+    return {
+      data: prevCache.payload,
+      providerId: prevCache.providerId,
+      isFromCache: true,
+      isStale: false,
+      errorMessage: null,
+    };
+  }
+
+  const keys = (query.competitionProviderIds ?? []).filter(Boolean);
+  const active = MATCH_MERGE_PROVIDERS.filter(provider => {
+    if (!provider.capabilities.schedules || !provider.isConfigured()) return false;
+    if (provider.id === 'thesportsdb' && nearSoftCap('thesportsdb')) return false;
+    return true;
+  });
+
+  const settled = await Promise.allSettled(
+    active.map(provider =>
+      withTimeout(provider.getMatches(subQueryForProvider(provider, keys, query)), PROVIDER_TIMEOUT_MS),
+    ),
+  );
+
+  const arrays: Match[][] = [];
+  const errors: string[] = [];
+  let fulfilled = 0;
+  settled.forEach((result, index) => {
+    const provider = active[index];
+    if (result.status === 'fulfilled') {
+      fulfilled += 1;
+      recordSuccess(provider.id);
+      arrays.push(result.value);
+    } else {
+      const reason = result.reason;
+      const message = reason instanceof ProviderError ? reason.message
+        : reason instanceof Error ? reason.message : 'Unknown provider error';
+      recordFailure(provider.id, message);
+      errors.push(`${provider.displayName}: ${message}`);
+    }
+  });
+
+  if (fulfilled === 0) {
+    return {
+      data: prevCache?.payload ?? [],
+      providerId: 'cached',
+      isFromCache: true,
+      isStale: true,
+      errorMessage: errors.join('; ') || 'All match sources are unavailable',
+    };
+  }
+
+  const merged = mergeMatches(arrays, {
+    previous: prevCache?.payload,
+    resolveCatalog: resolveCatalogForMatch,
+  });
+
   const requestedDay = query.dateFromUtc.slice(0, 10);
   const today = new Date().toISOString().slice(0, 10);
-  return withFallback(
-    'schedules',
-    provider => provider.getMatches(query),
-    result => result.length === 0,
-    cacheKeys.matches(query.dateFromUtc, query.dateToUtc, query.competitionProviderIds),
-    result => result.some(match => match.status === 'live' || match.status === 'half_time')
-      ? CACHE_TTL_MS.liveFixtures
-      : requestedDay === today
-        ? CACHE_TTL_MS.todayFixtures
-        : CACHE_TTL_MS.upcomingFixtures,
-    query.forceRefresh === true,
-  );
+  const multiDay = query.dateToUtc.slice(0, 10) !== requestedDay;
+  const ttl = merged.some(match => match.status === 'live' || match.status === 'half_time')
+    ? CACHE_TTL_MS.liveFixtures
+    : !multiDay && requestedDay === today
+      ? CACHE_TTL_MS.todayFixtures
+      : multiDay
+        ? CACHE_TTL_MS.rangeFixtures
+        : CACHE_TTL_MS.upcomingFixtures;
+
+  await writeCache(cacheKey, 'merged', merged, ttl).catch(() => undefined);
+
+  return {
+    data: merged,
+    providerId: 'merged',
+    isFromCache: false,
+    isStale: false,
+    errorMessage: errors.length ? errors.join('; ') : null,
+  };
 }
 
 export async function fetchCompetitions(): Promise<SourcedResult<Competition[]>> {
@@ -215,6 +355,36 @@ export async function resolveMatchById(matchId: string): Promise<Match | null> {
       if (match) return match;
     } catch {
       // fall through to cache below
+    }
+  }
+  return null;
+}
+
+/**
+ * A reminder / prediction saved before the merge pipeline may hold an id from
+ * a provider that no longer wins that fixture's identity (e.g. an
+ * `openfootball:` id when ESPN now leads). When a direct lookup fails, try to
+ * re-link it against a freshly fetched window by fuzzy fixture identity.
+ */
+export function reconcileMatchId(staleId: string, fresh: Match[]): Match | null {
+  const exact = fresh.find(match => match.id === staleId);
+  if (exact) return exact;
+
+  if (staleId.startsWith('openfootball:')) {
+    const parts = staleId.split(':');
+    // openfootball:<code>:<YYYY-MM-DD>:<home>:<away>
+    if (parts.length >= 5) {
+      const date = parts[2];
+      const homeTeamName = parts[3];
+      const awayTeamName = parts.slice(4).join(':');
+      const probe: Match = {
+        ...fresh[0],
+        homeTeamName,
+        awayTeamName,
+        kickoffUtc: /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T12:00:00.000Z` : null,
+        kickoffUnknown: true,
+      } as Match;
+      return fresh.find(match => sameFixture(probe, match)) ?? null;
     }
   }
   return null;

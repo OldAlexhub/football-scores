@@ -9,9 +9,12 @@ export type ProviderId =
   | 'openfootball'
   | 'thesportsdb'
   | 'espn'
+  | 'openligadb'
   | 'football-data-org'
   | 'api-football'
-  | 'cached';
+  | 'cached'
+  /** Synthetic id for a fixture list reconciled from several providers. */
+  | 'merged';
 
 export interface ProviderCapabilities {
   schedules: boolean;
@@ -121,6 +124,14 @@ export interface Match {
   isKnockout: boolean;
   extraTimePossible: boolean;
   attribution: string;
+  /**
+   * Every provider that contributed a record to this (possibly merged)
+   * fixture. Single-source fixtures carry a one-element array; absent on
+   * records that predate the merge pipeline.
+   */
+  sourceIds?: ProviderId[];
+  /** Resolved `competitionCatalog` key, stamped by the merge pipeline. */
+  catalogKey?: string | null;
 }
 
 export interface MatchPrediction {
@@ -224,7 +235,7 @@ export interface StandingRow {
   isProvisional: boolean;
 }
 
-export type FavoriteEntityType = 'competition' | 'team';
+export type FavoriteEntityType = 'competition' | 'team' | 'player';
 
 export interface Favorite {
   id: string;
@@ -288,7 +299,7 @@ export interface Prediction {
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type ClockPreference = '12h' | '24h';
 export type LanguagePreference = 'en' | 'ar';
-export type DefaultTab = 'matches' | 'matchday' | 'predict' | 'insights' | 'more';
+export type DefaultTab = 'home' | 'matches' | 'players' | 'more';
 
 export interface UserPreferences {
   onboardingCompleted: boolean;
@@ -389,9 +400,17 @@ export interface CompleteBackup {
   reminders: Reminder[];
   predictions: Prediction[];
   preferences: UserPreferences;
+  /** Added in schema v2; older backups omit it. */
+  followedPlayerMeta?: FollowedPlayerMeta[];
 }
 
 export type NewsCategory = 'general' | 'transfer';
+
+/** Teams / players a headline was matched to, for "news you follow" filtering. */
+export interface NewsEntities {
+  teamKeys: string[];
+  playerNames: string[];
+}
 
 /**
  * A headline + short snippet pulled from a publisher's own public RSS feed,
@@ -409,4 +428,71 @@ export interface NewsArticle {
   imageUrl: string | null;
   publishedAtUtc: string | null;
   category: NewsCategory;
+  /** 0–1 likelihood the item is genuine transfer news (only set when categorised). */
+  transferConfidence?: number;
+  /** Stable de-dupe identity: normalised URL, else `source|normalised-title`. */
+  guid?: string;
+  entities?: NewsEntities;
+}
+
+export type PlayerDataSource = 'thesportsdb' | 'wikipedia' | 'espn';
+
+export interface PlayerSearchResult {
+  id: string;
+  name: string;
+  photoUrl: string | null;
+  nationality: string | null;
+  position: string | null;
+  currentTeamName: string | null;
+  currentTeamId: string | null;
+  source: PlayerDataSource;
+}
+
+export interface PlayerCareerEntry {
+  teamName: string;
+  teamId: string | null;
+  fromYear: string | null;
+  toYear: string | null;
+  isLoan: boolean;
+}
+
+export interface PlayerHonour {
+  title: string;
+  season: string | null;
+  teamName: string | null;
+}
+
+export interface PlayerProfile {
+  id: string;
+  name: string;
+  fullName: string | null;
+  photoUrl: string | null;
+  nationality: string | null;
+  position: string | null;
+  birthDate: string | null;
+  birthPlace: string | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  currentTeamName: string | null;
+  currentTeamId: string | null;
+  bio: string | null;
+  bioSource: string | null;
+  bioSourceUrl: string | null;
+  career: PlayerCareerEntry[];
+  honours: PlayerHonour[];
+  socials: { label: string; url: string }[];
+  sources: PlayerDataSource[];
+  fetchedAtUtc: string;
+}
+
+/** Denormalised snapshot of a followed player, kept so the tab renders offline. */
+export interface FollowedPlayerMeta {
+  playerId: string;
+  name: string;
+  photoUrl: string | null;
+  position: string | null;
+  nationality: string | null;
+  clubName: string | null;
+  clubTeamId: string | null;
+  updatedAt: string;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchMatches, resolveMatchById } from '../providers/providerManager';
+import { fetchMatches, reconcileMatchId, resolveMatchById } from '../providers/providerManager';
 import { addDays } from '../utils/dates';
 import type { Match } from '../types/domain';
 
@@ -34,7 +34,13 @@ export function useResolvedMatches(matchIds: string[]): { matches: Record<string
       const missing = matchIds.filter(id => !map[id]);
       const resolved = await Promise.all(missing.map(id => resolveMatchById(id)));
       resolved.forEach((m, i) => {
-        if (m) map[missing[i]] = m;
+        if (m) {
+          map[missing[i]] = m;
+        } else {
+          // Fixture may have changed identity provider after the merge — re-link it.
+          const relinked = reconcileMatchId(missing[i], result.data);
+          if (relinked) map[missing[i]] = relinked;
+        }
       });
       if (mounted) {
         setMatches(map);

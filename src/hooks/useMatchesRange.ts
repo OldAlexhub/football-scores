@@ -16,7 +16,12 @@ export interface MatchesRangeState {
   canRefresh: boolean;
 }
 
-export function useMatchesRange(dateFromUtc: string, dateToUtc: string, competitionProviderId?: string): MatchesRangeState {
+/**
+ * @param competitionKey a `competitionCatalog` key (e.g. `premier-league`), or
+ *   undefined for the "all competitions" view. Provider-manager translates it
+ *   into each source's own id dialect.
+ */
+export function useMatchesRange(dateFromUtc: string, dateToUtc: string, competitionKey?: string): MatchesRangeState {
   const isFocused = useIsFocused();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +46,7 @@ export function useMatchesRange(dateFromUtc: string, dateToUtc: string, competit
     const result = await fetchMatches({
       dateFromUtc,
       dateToUtc,
-      competitionProviderIds: competitionProviderId ? [competitionProviderId] : undefined,
+      competitionProviderIds: competitionKey ? [competitionKey] : undefined,
       forceRefresh: manual,
     });
     if (!mounted.current) return;
@@ -55,7 +60,7 @@ export function useMatchesRange(dateFromUtc: string, dateToUtc: string, competit
     }
     setLoading(false);
     setRefreshing(false);
-  }, [dateFromUtc, dateToUtc, competitionProviderId]);
+  }, [dateFromUtc, dateToUtc, competitionKey]);
 
   useEffect(() => {
     mounted.current = true;
