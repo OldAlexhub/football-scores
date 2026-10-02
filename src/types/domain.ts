@@ -343,8 +343,6 @@ export interface AdSessionState {
 }
 
 export type AdPlacementName =
-  | 'match_detail_open'
-  | 'news_article_open'
   | 'weekend_planner_done'
   | 'weekend_planner_share'
   | 'prediction_save_milestone'

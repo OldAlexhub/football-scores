@@ -5,7 +5,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { AppIcon } from '../../components/AppIcon';
 import { InFeedNativeAd } from '../../ads/InFeedNativeAd';
-import { maybeShowInterstitial } from '../../ads/InterstitialManager';
 import { MatchCard } from '../../components/MatchCard';
 import { NewsThumb } from '../../components/NewsThumb';
 import { SafeScrollView } from '../../components/SafeScrollView';
@@ -36,14 +35,12 @@ export function HomeDashboardScreen({ navigation }: Props) {
 
   const feed = useHomeFeed(followedPlayers);
 
-  const openMatch = async (match: Match) => {
-    await maybeShowInterstitial('match_detail_open');
+  const openMatch = (match: Match) => {
     navigation.navigate('MatchDetails', { matchId: match.id, match });
   };
 
-  const openArticle = async (article: NewsArticle) => {
-    await maybeShowInterstitial('news_article_open');
-    await Linking.openURL(article.link).catch(() => undefined);
+  const openArticle = (article: NewsArticle) => {
+    void Linking.openURL(article.link).catch(() => undefined);
   };
 
   const renderMatch = (match: Match) => (
@@ -54,6 +51,12 @@ export function HomeDashboardScreen({ navigation }: Props) {
       onPress={() => openMatch(match)}
     />
   );
+
+  const feedMatchCount = new Set(
+    [feed.matchOfTheDay, ...feed.liveNow, ...feed.today]
+      .filter((match): match is Match => !!match)
+      .map(match => match.id),
+  ).size;
 
   const NewsRow = ({ article }: { article: NewsArticle }) => (
     <Pressable onPress={() => openArticle(article)}>
@@ -117,7 +120,7 @@ export function HomeDashboardScreen({ navigation }: Props) {
           </View>
         ) : null}
 
-        <View style={styles.adWrap}><InFeedNativeAd /></View>
+        {feedMatchCount >= 4 ? <View style={styles.adWrap}><InFeedNativeAd /></View> : null}
 
         <View style={styles.section}>
           <SectionHeader title={t('home.following')} />

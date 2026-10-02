@@ -56,8 +56,11 @@ react {
 
 /**
  * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
+ * Enabled so R8 obfuscates the DEX code — Google Play's "App optimization"
+ * check requires this. A mapping.txt is emitted at
+ * app/build/outputs/mapping/release/ for deobfuscating crash reports.
  */
-def enableProguardInReleaseBuilds = false
+def enableProguardInReleaseBuilds = true
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -91,7 +94,7 @@ android {
         applicationId "com.oldalexhub.footballscores"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
+        versionCode 5
         versionName "1.0.0"
     }
     signingConfigs {

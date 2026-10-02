@@ -8,7 +8,7 @@ import type {
   StandingRow,
   Team,
 } from '../types/domain';
-import { COMPETITION_BY_SPORTS_DB_ID, COMPETITION_CATALOG, DEFAULT_COMPETITION_KEYS } from '../config/competitionCatalog';
+import { COMPETITION_BY_SPORTS_DB_ID, COMPETITION_CATALOG } from '../config/competitionCatalog';
 import { THE_SPORTS_DB_CAPABILITIES } from './capabilities';
 import { MAX_RANGE_DAYS } from './cacheKeys';
 import { mapWithConcurrency } from './concurrency';
@@ -139,10 +139,12 @@ class TheSportsDbProvider implements FootballDataProvider {
   async getCompetitions(): Promise<Competition[]> { return []; }
 
   async getMatches(query: MatchesQuery): Promise<Match[]> {
-    const requestedCompetitions = query.competitionProviderIds?.length
-      ? COMPETITION_CATALOG.filter(competition => query.competitionProviderIds?.includes(competition.canonicalId))
-      : COMPETITION_CATALOG.filter(competition => DEFAULT_COMPETITION_KEYS.has(competition.key));
-    if (query.competitionProviderIds?.length && requestedCompetitions.length === 0) return [];
+    const hasCompetitionFilter = !!query.competitionProviderIds?.length;
+    const requestedCompetitions = hasCompetitionFilter
+      ? COMPETITION_CATALOG.filter(competition => !!competition.sportsDbLeagueId
+        && query.competitionProviderIds?.includes(competition.canonicalId))
+      : [];
+    if (hasCompetitionFilter && requestedCompetitions.length === 0) return [];
     const dates: string[] = [];
     let cursor = new Date(query.dateFromUtc.slice(0, 10));
     const end = new Date(query.dateToUtc.slice(0, 10));
@@ -150,10 +152,12 @@ class TheSportsDbProvider implements FootballDataProvider {
       dates.push(cursor.toISOString().slice(0, 10));
       cursor = new Date(cursor.getTime() + 86_400_000);
     }
-    const queries = dates.flatMap(date => [
-      ...(query.competitionProviderIds?.length ? [] : [`${BASE_URL}/eventsday.php?d=${date}&s=Soccer`]),
-      ...requestedCompetitions.map(competition => `${BASE_URL}/eventsday.php?d=${date}&l=${competition.sportsDbLeagueId}`),
-    ]);
+    // The unfiltered endpoint is the worldwide soccer sweep. Combining it
+    // with one request per featured league duplicated fixtures and exhausted
+    // the shared demo-key budget on even short date ranges.
+    const queries = dates.flatMap(date => hasCompetitionFilter
+      ? requestedCompetitions.map(competition => `${BASE_URL}/eventsday.php?d=${date}&l=${competition.sportsDbLeagueId}`)
+      : [`${BASE_URL}/eventsday.php?d=${date}&s=Soccer`]);
     const responses = await mapWithConcurrency(queries, 4, url => {
       recordRequest(this.id);
       return fetchJson<any>(this.id, url).catch(() => ({ events: [] }));

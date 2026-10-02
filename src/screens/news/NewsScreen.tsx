@@ -6,7 +6,6 @@ import { Card, EmptyState, ErrorState, LoadingState } from '../../components/ui'
 import { FilterChip } from '../../components/FilterChip';
 import { NewsThumb } from '../../components/NewsThumb';
 import { InFeedNativeAd } from '../../ads/InFeedNativeAd';
-import { maybeShowInterstitial } from '../../ads/InterstitialManager';
 import { fetchFootballNews } from '../../providers/newsProvider';
 import { usePreferences } from '../../state/PreferencesContext';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -62,9 +61,8 @@ export function NewsScreen() {
 
   const visible = filtered.slice(0, visibleCount);
 
-  const handleOpen = async (link: string) => {
-    await maybeShowInterstitial('news_article_open');
-    await Linking.openURL(link).catch(() => undefined);
+  const handleOpen = (link: string) => {
+    void Linking.openURL(link).catch(() => undefined);
   };
 
   const dateFmt = new Intl.DateTimeFormat(preferences.language === 'ar' ? 'ar' : 'en-GB', { day: 'numeric', month: 'short' });
@@ -93,7 +91,7 @@ export function NewsScreen() {
           </View>
         </Card>
       </Pressable>
-      {index === 1 ? <View style={styles.nativeAdWrap}><InFeedNativeAd /></View> : null}
+      {index === 3 ? <View style={styles.nativeAdWrap}><InFeedNativeAd /></View> : null}
     </>
   );
 

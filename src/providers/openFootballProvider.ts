@@ -31,6 +31,17 @@ interface TournamentEntry {
 
 type RegistryEntry = LeagueEntry | TournamentEntry;
 
+interface LoadedCompetitionFile {
+  entry: RegistryEntry;
+  data: any;
+  season: string;
+}
+
+interface CompetitionFileCacheEntry {
+  value: LoadedCompetitionFile | null;
+  expiresAt: number;
+}
+
 /**
  * Every code below was verified against the live dataset directory listing
  * (github.com/openfootball/football.json and the per-tournament repos)
@@ -171,7 +182,7 @@ function combineDateTime(date: string | undefined, time: string | undefined): { 
   if (Number.isNaN(parsed.getTime())) {
     return { iso: null, unknown: true };
   }
-  return { iso: parsed.toISOString(), unknown: false };
+  return { iso: parsed.toISOString(), unknown: true };
 }
 
 const KNOCKOUT_ROUND_PATTERN = /round of|quarter|semi|final|play-?off/i;
@@ -227,6 +238,8 @@ class OpenFootballProvider implements FootballDataProvider {
   readonly id = 'openfootball' as const;
   readonly displayName = 'OpenFootball';
   readonly capabilities = OPEN_FOOTBALL_CAPABILITIES;
+  private readonly competitionFileCache = new Map<string, CompetitionFileCacheEntry>();
+  private readonly pendingCompetitionFiles = new Map<string, Promise<LoadedCompetitionFile | null>>();
 
   isConfigured(): boolean {
     return true;
@@ -252,7 +265,34 @@ class OpenFootballProvider implements FootballDataProvider {
 
   private resolvedCandidateByCode = new Map<string, string>();
 
-  private async loadCompetitionFile(code: string): Promise<{ entry: RegistryEntry; data: any; season: string } | null> {
+  private async loadCompetitionFile(code: string, forceRefresh = false): Promise<LoadedCompetitionFile | null> {
+    const cached = this.competitionFileCache.get(code);
+    if (!forceRefresh && cached && cached.expiresAt > Date.now()) return cached.value;
+
+    const pending = this.pendingCompetitionFiles.get(code);
+    if (pending) return pending;
+
+    const request = this.fetchCompetitionFile(code).then(
+      value => {
+        this.competitionFileCache.set(code, {
+          value,
+          // These community datasets change at most daily; manual refresh can
+          // bypass this short in-memory cache when the user requests it.
+          expiresAt: Date.now() + (value ? 30 * 60 * 1000 : 5 * 60 * 1000),
+        });
+        this.pendingCompetitionFiles.delete(code);
+        return value;
+      },
+      error => {
+        this.pendingCompetitionFiles.delete(code);
+        throw error;
+      },
+    );
+    this.pendingCompetitionFiles.set(code, request);
+    return request;
+  }
+
+  private async fetchCompetitionFile(code: string): Promise<LoadedCompetitionFile | null> {
     const entry = REGISTRY.find(e => e.code === code);
     if (!entry) return null;
 
@@ -283,7 +323,7 @@ class OpenFootballProvider implements FootballDataProvider {
     const from = new Date(query.dateFromUtc).getTime();
     const to = new Date(query.dateToUtc).getTime();
     const grouped = await mapWithConcurrency(codes, 6, async code => {
-      const loaded = await this.loadCompetitionFile(code);
+      const loaded = await this.loadCompetitionFile(code, query.forceRefresh === true);
       if (!loaded) return [] as Match[];
       const { entry, data, season } = loaded;
       const competitionMatches: Match[] = [];

@@ -41,11 +41,13 @@ export function useHomeFeed(followedPlayers: FollowedPlayerLite[] = []): HomeFee
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const mounted = useRef(true);
+  const requestSequence = useRef(0);
 
   const favoriteTeamKey = [...favoriteTeamIds].sort().join(',');
   const playerKey = followedPlayers.map(p => `${p.name}|${p.clubName ?? ''}`).sort().join(',');
 
   const load = useCallback(async (manual = false, background = false) => {
+    const requestId = ++requestSequence.current;
     if (manual) setRefreshing(true);
     else if (!background) setLoading(true);
 
@@ -53,15 +55,23 @@ export function useHomeFeed(followedPlayers: FollowedPlayerLite[] = []): HomeFee
     const from = startOfLocalDay(now).toISOString();
     const to = addDays(now, 3).toISOString();
 
-    const [matchesResult, newsResult] = await Promise.all([
+    const [matchesResult, newsResult] = await Promise.allSettled([
       fetchMatches({ dateFromUtc: from, dateToUtc: to, forceRefresh: manual }),
       fetchFootballNews({ forceRefresh: manual, language: preferences.language === 'ar' ? 'ar' : 'en' }),
     ]);
 
-    if (!mounted.current) return;
-    setMatches(matchesResult.data);
-    setNews(newsResult.articles);
-    setErrorMessage(matchesResult.errorMessage ?? null);
+    if (!mounted.current || requestId !== requestSequence.current) return;
+    if (matchesResult.status === 'fulfilled') {
+      setMatches(matchesResult.value.data);
+      setErrorMessage(matchesResult.value.errorMessage);
+    } else {
+      setErrorMessage(matchesResult.reason instanceof Error ? matchesResult.reason.message : 'Unable to load matches');
+    }
+    if (newsResult.status === 'fulfilled') {
+      setNews(newsResult.value.articles);
+    } else if (matchesResult.status === 'fulfilled' && !matchesResult.value.errorMessage) {
+      setErrorMessage(newsResult.reason instanceof Error ? newsResult.reason.message : 'Unable to load news');
+    }
     setLoading(false);
     setRefreshing(false);
   }, [preferences.language]);

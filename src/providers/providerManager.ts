@@ -1,13 +1,12 @@
 import {
   COMPETITION_BY_KEY,
-  DEFAULT_COMPETITION_KEYS,
   resolveCatalogCompetition,
   type CompetitionCatalogItem,
 } from '../config/competitionCatalog';
 import { readCache, writeCache } from '../storage/repositories/providerCacheRepo';
 import type { Competition, Match, MatchAnalysis, MatchPrediction, ProviderId, StandingRow, Team } from '../types/domain';
 import { apiFootballProvider } from './apiFootballProvider';
-import { cacheKeys, CACHE_TTL_MS, HARD_MAX_RANGE_DAYS } from './cacheKeys';
+import { cacheKeys, CACHE_TTL_MS, HARD_MAX_RANGE_DAYS, MAX_RANGE_DAYS } from './cacheKeys';
 import { cachedProvider } from './cachedProvider';
 import { withTimeout } from './concurrency';
 import { footballDataOrgProvider } from './footballDataOrgProvider';
@@ -15,7 +14,7 @@ import { mergeMatches } from './matchMerge';
 import { sameFixture } from './nameMatch';
 import { openFootballProvider } from './openFootballProvider';
 import { openLigaDbProvider } from './openLigaDbProvider';
-import { nearSoftCap } from './rateBudget';
+import { canFitWithinSoftCap } from './rateBudget';
 import { theSportsDbProvider } from './theSportsDbProvider';
 import { espnProvider } from './espnProvider';
 import type { FootballDataProvider, FormResult, HeadToHeadResult, MatchesQuery } from './types';
@@ -184,10 +183,11 @@ function subQueryForProvider(provider: FootballDataProvider, keys: string[], bas
     return { ...base, competitionProviderIds: pick(item => item.canonicalId) };
   }
   if (provider.id === 'openfootball') {
-    const source = keys.length ? keys : [...DEFAULT_COMPETITION_KEYS];
-    const codes = source
-      .map(key => COMPETITION_BY_KEY.get(key)?.openFootballCode)
-      .filter((code): code is string => !!code);
+    const codes = keys.length
+      ? pick(item => item.openFootballCode)
+      : [...COMPETITION_BY_KEY.values()]
+        .filter(item => !!item.openFootballCode)
+        .map(item => item.openFootballCode as string);
     return { ...base, competitionProviderIds: codes };
   }
   // api-football / football-data.org: native numeric ids, only reached when configured.
@@ -219,9 +219,18 @@ export async function fetchMatches(rawQuery: MatchesQuery): Promise<SourcedResul
   }
 
   const keys = (query.competitionProviderIds ?? []).filter(Boolean);
+  const fromDay = new Date(query.dateFromUtc.slice(0, 10));
+  const toDay = new Date(query.dateToUtc.slice(0, 10));
+  const sportsDbDates = Math.min(MAX_RANGE_DAYS, Math.max(0,
+    Math.floor((toDay.getTime() - fromDay.getTime()) / 86_400_000) + 1,
+  ));
+  const sportsDbCompetitions = keys.length
+    ? keys.filter(key => !!COMPETITION_BY_KEY.get(key)?.sportsDbLeagueId).length
+    : 1;
   const active = MATCH_MERGE_PROVIDERS.filter(provider => {
     if (!provider.capabilities.schedules || !provider.isConfigured()) return false;
-    if (provider.id === 'thesportsdb' && nearSoftCap('thesportsdb')) return false;
+    if (provider.id === 'thesportsdb'
+      && !canFitWithinSoftCap('thesportsdb', sportsDbDates * sportsDbCompetitions)) return false;
     return true;
   });
 

@@ -12,6 +12,9 @@ export function useCompetitions() {
       if (!mounted) return;
       setCompetitions(result.data);
       setLoading(false);
+    }).catch(() => {
+      if (!mounted) return;
+      setLoading(false);
     });
     return () => {
       mounted = false;

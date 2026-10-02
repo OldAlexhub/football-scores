@@ -4,7 +4,6 @@ import { Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View }
 import { useTranslation } from 'react-i18next';
 import { AppIcon } from '../../components/AppIcon';
 import { InFeedNativeAd } from '../../ads/InFeedNativeAd';
-import { maybeShowInterstitial } from '../../ads/InterstitialManager';
 import { FilterChip } from '../../components/FilterChip';
 import { MatchCard } from '../../components/MatchCard';
 import { MonthCalendar } from '../../components/MonthCalendar';
@@ -199,17 +198,14 @@ export function MatchesHomeScreen({ navigation }: Props) {
 
   const renderItem = ({ item, index, section }: { item: Match; index: number; section: { key: string } }) => {
     const reminder = getReminderFor(item.id);
-    const showAd = index === 1 && section.key === sections[0]?.key;
+    const showAd = index === 3 && section.key === sections[0]?.key;
     return (
       <>
         <MatchCard
         match={item}
         hasReminder={!!reminder && reminder.status === 'scheduled'}
         modelPrediction={modelPredictions[item.id]}
-        onPress={async () => {
-          await maybeShowInterstitial('match_detail_open');
-          navigation.navigate('MatchDetails', { matchId: item.id, match: item });
-        }}
+        onPress={() => navigation.navigate('MatchDetails', { matchId: item.id, match: item })}
         onToggleReminder={item.status === 'scheduled' ? () => {
           if (reminder?.status === 'scheduled') cancelReminder(item.id);
           else setReminder(item, preferences.defaultReminderOffsetMinutes);

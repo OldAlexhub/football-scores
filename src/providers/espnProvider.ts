@@ -17,6 +17,7 @@ import {
   COMPETITION_BY_ESPN_CODE,
   COMPETITION_BY_KEY,
   DEFAULT_COMPETITION_KEYS,
+  ESPN_COMPETITION_KEYS,
   resolveCatalogCompetition,
 } from '../config/competitionCatalog';
 import { readCache, writeCache } from '../storage/repositories/providerCacheRepo';
@@ -480,14 +481,6 @@ class EspnProvider implements FootballDataProvider {
   async getCompetitions(): Promise<Competition[]> { return []; }
 
   async getMatches(query: MatchesQuery): Promise<Match[]> {
-    const keys = query.competitionProviderIds?.length
-      ? query.competitionProviderIds
-      : [...DEFAULT_COMPETITION_KEYS];
-    const codes = [...new Set(
-      keys.map(key => COMPETITION_BY_KEY.get(key)?.espnCode).filter((c): c is string => !!c),
-    )];
-    if (codes.length === 0) return [];
-
     const days: Date[] = [];
     let cursor = new Date(query.dateFromUtc.slice(0, 10));
     const end = new Date(query.dateToUtc.slice(0, 10));
@@ -495,6 +488,16 @@ class EspnProvider implements FootballDataProvider {
       days.push(new Date(cursor));
       cursor = new Date(cursor.getTime() + 86_400_000);
     }
+
+    const keys = query.competitionProviderIds?.length
+      ? query.competitionProviderIds
+      : days.length <= 3
+        ? ESPN_COMPETITION_KEYS
+        : [...DEFAULT_COMPETITION_KEYS];
+    const codes = [...new Set(
+      keys.map(key => COMPETITION_BY_KEY.get(key)?.espnCode).filter((c): c is string => !!c),
+    )];
+    if (codes.length === 0) return [];
 
     const pairs = codes.flatMap(code => days.map(day => ({ code, day })));
     const rangeStart = new Date(query.dateFromUtc).getTime();

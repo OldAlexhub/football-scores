@@ -50,3 +50,10 @@ export function nearSoftCap(providerId: ProviderId): boolean {
   if (cap == null) return false;
   return requestsInLastMinute(providerId) >= cap;
 }
+
+/** Avoid starting a batch that is expected to exceed a provider's soft limit. */
+export function canFitWithinSoftCap(providerId: ProviderId, requestCount: number): boolean {
+  const cap = SOFT_CAP[providerId];
+  if (cap == null) return true;
+  return requestsInLastMinute(providerId) + Math.max(0, requestCount) <= cap;
+}

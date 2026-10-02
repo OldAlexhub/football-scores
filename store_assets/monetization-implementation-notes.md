@@ -14,7 +14,7 @@ Internal reference for the AdMob architecture. See also `src/config/adsConfig.ts
 | `src/ads/BannerEligibilityController.ts` + `useSuppressBanner.ts` | Pub-sub suppression signal any sensitive screen registers with while mounted |
 | `src/ads/keyboardVisibility.ts` | Global keyboard-visible flag shared by banner + interstitial gating |
 | `src/ads/SafeAdContainer.tsx` | The one persistent banner slot, mounted inside `SafeBottomBar` |
-| `src/ads/InFeedNativeAd.tsx` | Clearly labeled native ad used after the fourth match/headline; collapses on load failure |
+| `src/ads/InFeedNativeAd.tsx` | In-feed placement after the fourth item; uses a configured native unit or falls back to the banner unit, and collapses on load failure |
 | `src/ads/AppOpenAdManager.ts` | Preloads and caps app-open ads for returning users starting a new long session |
 | `src/ads/AdPreloadController.ts` | Single `InterstitialAd` instance lifecycle: load, retry with backoff, show |
 | `src/ads/AdFrequencyController.ts` | Pure frequency-cap decision function + persisted counters |
@@ -32,7 +32,7 @@ Internal reference for the AdMob architecture. See also `src/config/adsConfig.ts
 
 ## Native and app-open safeguards
 
-Native ads are placed inside long content feeds after the fourth organic item, carry both “Ad” and “Sponsored” labels, and never imitate a match or article. App-open ads are eligible only after three sessions and at least four hours since the previous app-open impression. Release builds keep both formats disabled until dedicated production unit IDs are supplied in `adsConfig.ts`; debug builds use Google's official test units.
+In-feed ads appear after the fourth organic item and never imitate a match or article. Debug builds use Google's test native unit. Release builds use the banner unit in the in-feed slot until a dedicated production native unit is configured; app-open ads stay disabled until a production app-open unit is configured. App-open eligibility also requires three sessions and four hours since the previous impression.
 
 ## Extending
 

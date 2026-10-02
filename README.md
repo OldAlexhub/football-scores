@@ -135,7 +135,7 @@ All ad configuration lives in **`src/config/adsConfig.ts`**, the single source o
 
 ## Ad placement architecture
 
-See `store_assets/monetization-implementation-notes.md` for the full component map. In short: one persistent banner (`SafeAdContainer`) lives inside the custom tab bar (`SafeBottomBar`) and survives tab switches; screens that must never show it call `useSuppressBanner()`. Native ads appear naturally after the fourth match or headline and collapse completely if unavailable. Interstitials preload one at a time (`AdPreloadController`) and are only requested to show via `maybeShowInterstitial(placement)` **after** a user-visible action already completed. App-open ads are limited to returning users beginning a genuinely new session. All formats remain consent-gated and frequency-capped.
+See `store_assets/monetization-implementation-notes.md` for the full component map. In short: one persistent banner (`SafeAdContainer`) lives inside the custom tab bar (`SafeBottomBar`) and survives tab switches; screens that must never show it call `useSuppressBanner()`. In-feed ad slots appear after four matches or headlines and collapse completely if unavailable. A dedicated native unit is used when configured; otherwise the slot uses the production banner unit. Interstitials preload one at a time (`AdPreloadController`) and are limited to completed, non-browsing actions. App-open ads are limited to returning users beginning a genuinely new session. All formats remain consent-gated and frequency-capped.
 
 ## app-ads.txt
 
@@ -204,7 +204,7 @@ See `store_assets/data-source-attribution.md`.
 - The banner only renders inside `SafeBottomBar`, above the tab buttons and above `insets.bottom`. If you added a new bottom-pinned control elsewhere, use `SafeStickyAction`/`SafeAdContainer` conventions rather than raw absolute positioning.
 
 **Interstitial not showing / frequency cap confusion**
-- Check `AdFrequencyController.canShowInterstitial()`'s conditions (180s session warm-up, 4 actions before the first ad, 3 actions + 8 minutes between ads, 2/session, 5/day) — these are intentionally conservative. Use the debug-only Ad Diagnostics path (`isAdsDiagnosticsEnabled()` in `adsConfig.ts`) while testing.
+- Check `AdFrequencyController.canShowInterstitial()`'s conditions (60s session warm-up, 3 actions before the first ad, 2 actions + 5 minutes between ads, 3/session, 7 per rolling day). Use the debug-only Ad Diagnostics path (`isAdsDiagnosticsEnabled()` in `adsConfig.ts`) while testing.
 
 **AdMob app readiness / app-ads.txt verification**
 - See `store_assets/app-ads-txt-instructions.md` and `store_assets/admob-release-checklist.md`.

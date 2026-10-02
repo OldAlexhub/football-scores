@@ -66,8 +66,6 @@ export const NATIVE_ADS_ENABLED = NATIVE_AD_UNIT_ID.length > 0;
 export const APP_OPEN_ADS_ENABLED = APP_OPEN_AD_UNIT_ID.length > 0;
 
 export const AD_PLACEMENT_NAMES = [
-  'match_detail_open',
-  'news_article_open',
   'weekend_planner_done',
   'weekend_planner_share',
   'prediction_save_milestone',

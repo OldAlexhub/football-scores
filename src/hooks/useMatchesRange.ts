@@ -32,34 +32,47 @@ export function useMatchesRange(dateFromUtc: string, dateToUtc: string, competit
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastRefreshedAtUtc, setLastRefreshedAtUtc] = useState<string | null>(null);
   const mounted = useRef(true);
+  const requestSequence = useRef(0);
 
   const load = useCallback(async (manual = false, background = false) => {
     if (manual && !canManualRefresh()) {
       return;
     }
+    const requestId = ++requestSequence.current;
     if (manual) {
       markManualRefresh();
       setRefreshing(true);
     } else if (!background) {
       setLoading(true);
     }
-    const result = await fetchMatches({
-      dateFromUtc,
-      dateToUtc,
-      competitionProviderIds: competitionKey ? [competitionKey] : undefined,
-      forceRefresh: manual,
-    });
-    if (!mounted.current) return;
-    setMatches(result.data);
-    setProviderId(result.providerId);
-    setIsFromCache(result.isFromCache);
-    setIsStale(result.isStale);
-    setErrorMessage(result.errorMessage);
-    if (!result.isFromCache) {
-      setLastRefreshedAtUtc(new Date().toISOString());
+    try {
+      const result = await fetchMatches({
+        dateFromUtc,
+        dateToUtc,
+        competitionProviderIds: competitionKey ? [competitionKey] : undefined,
+        forceRefresh: manual,
+      });
+      if (!mounted.current || requestId !== requestSequence.current) return;
+      setMatches(result.data);
+      setProviderId(result.providerId);
+      setIsFromCache(result.isFromCache);
+      setIsStale(result.isStale);
+      setErrorMessage(result.errorMessage);
+      if (!result.isFromCache) {
+        setLastRefreshedAtUtc(new Date().toISOString());
+      }
+    } catch (error) {
+      if (!mounted.current || requestId !== requestSequence.current) return;
+      setProviderId('cached');
+      setIsFromCache(true);
+      setIsStale(true);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load matches');
+    } finally {
+      if (mounted.current && requestId === requestSequence.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-    setLoading(false);
-    setRefreshing(false);
   }, [dateFromUtc, dateToUtc, competitionKey]);
 
   useEffect(() => {
