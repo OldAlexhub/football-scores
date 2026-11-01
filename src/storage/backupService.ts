@@ -1,10 +1,10 @@
-import { runExecute, runQuery } from './db';
+import { runInTransaction, runQuery } from './db';
 import { getPreferences, savePreferences } from './preferencesRepo';
 import type { BackupMetadata, CompleteBackup, Favorite, FollowedPlayerMeta, Reminder, WatchPlanItem } from '../types/domain';
 import type { PredictionRecord } from './repositories/predictionsRepo';
 
-const APP_VERSION = '1.0.0';
-const SCHEMA_VERSION = 2;
+const APP_VERSION = '2.0.0';
+const SCHEMA_VERSION = 3;
 
 export async function buildCompleteBackup(): Promise<CompleteBackup> {
   const favorites = await runQuery<any>('SELECT * FROM favorites');
@@ -40,12 +40,13 @@ export async function buildCompleteBackup(): Promise<CompleteBackup> {
 
   return {
     metadata,
-    favorites: favorites as Favorite[],
+    favorites: favorites.map(f=>({id:f.id,entityType:f.entity_type,entityId:f.entity_id,order:f.order_index,createdAt:f.created_at})) as Favorite[],
     watchPlanItems: watchPlanItems as WatchPlanItem[],
     reminders: reminders as Reminder[],
     predictions: predictions as PredictionRecord[],
     followedPlayerMeta,
     preferences,
+    reminderRules: await runQuery('SELECT * FROM reminder_rules'),
   };
 }
 
@@ -85,15 +86,8 @@ export async function restoreCompleteBackup(backup: CompleteBackup): Promise<voi
     throw new Error(validation.reason ?? 'Invalid backup');
   }
 
-  const rollback = {
-    favorites: await runQuery<any>('SELECT * FROM favorites'),
-    watchPlanItems: await runQuery<any>('SELECT * FROM watch_plan_items'),
-    reminders: await runQuery<any>('SELECT * FROM reminders'),
-    predictions: await runQuery<any>('SELECT * FROM predictions'),
-    followedPlayerMeta: await runQuery<any>('SELECT * FROM followed_player_meta').catch(() => []),
-    preferences: getPreferences(),
-  };
-
+  const currentPreferences = getPreferences();
+  await runInTransaction(async runExecute => {
   const insertPlayerMeta = (m: any) => runExecute(
     `INSERT INTO followed_player_meta (player_id, name, photo_url, position, nationality, club_name, club_team_id, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -104,17 +98,17 @@ export async function restoreCompleteBackup(backup: CompleteBackup): Promise<voi
     ],
   );
 
-  try {
     await runExecute('DELETE FROM favorites');
     await runExecute('DELETE FROM watch_plan_items');
     await runExecute('DELETE FROM reminders');
+    await runExecute('DELETE FROM reminder_rules');
     await runExecute('DELETE FROM predictions');
     await runExecute('DELETE FROM followed_player_meta');
 
-    for (const f of backup.favorites) {
+    for (const f of backup.favorites as any[]) {
       await runExecute(
         'INSERT INTO favorites (id, entity_type, entity_id, order_index, created_at) VALUES (?, ?, ?, ?, ?)',
-        [f.id, f.entityType, f.entityId, f.order, f.createdAt],
+        [f.id, f.entityType ?? f.entity_type, f.entityId ?? f.entity_id, f.order ?? f.order_index ?? 0, f.createdAt ?? f.created_at],
       );
     }
     for (const w of backup.watchPlanItems as any[]) {
@@ -176,58 +170,12 @@ export async function restoreCompleteBackup(backup: CompleteBackup): Promise<voi
       await insertPlayerMeta(m);
     }
 
-    savePreferences(backup.preferences);
-  } catch (error) {
-    await runExecute('DELETE FROM favorites');
-    await runExecute('DELETE FROM watch_plan_items');
-    await runExecute('DELETE FROM reminders');
-    await runExecute('DELETE FROM predictions');
-    await runExecute('DELETE FROM followed_player_meta');
-    for (const m of rollback.followedPlayerMeta) {
-      await insertPlayerMeta(m);
+    if (backup.reminderRules) {
+      for (const r of backup.reminderRules) await runExecute('INSERT INTO reminder_rules(match_id,origin,disabled) VALUES(?,?,?)',[r.match_id,r.origin,r.disabled]);
+    } else {
+      await runExecute("INSERT INTO reminder_rules(match_id,origin,disabled) SELECT match_id,'manual',0 FROM reminders");
     }
-    for (const f of rollback.favorites) {
-      await runExecute(
-        'INSERT INTO favorites (id, entity_type, entity_id, order_index, created_at) VALUES (?, ?, ?, ?, ?)',
-        [f.id, f.entity_type, f.entity_id, f.order_index, f.created_at],
-      );
-    }
-    for (const w of rollback.watchPlanItems) {
-      await runExecute(
-        `INSERT INTO watch_plan_items (id, match_id, priority, watch_later, watched, notes,
-          estimated_duration_minutes, spoiler_shield_enabled, spoiler_revealed,
-          spoiler_revealed_permanently, manually_added, order_index, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          w.id, w.match_id, w.priority, w.watch_later, w.watched, w.notes,
-          w.estimated_duration_minutes, w.spoiler_shield_enabled, w.spoiler_revealed,
-          w.spoiler_revealed_permanently, w.manually_added, w.order_index, w.created_at, w.updated_at,
-        ],
-      );
-    }
-    for (const r of rollback.reminders) {
-      await runExecute(
-        `INSERT INTO reminders (id, match_id, offset_minutes, notification_id, scheduled_for_utc,
-          status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [r.id, r.match_id, r.offset_minutes, r.notification_id, r.scheduled_for_utc, r.status, r.created_at, r.updated_at],
-      );
-    }
-    for (const p of rollback.predictions) {
-      await runExecute(
-        `INSERT INTO predictions (id, match_id, outcome, home_score, away_score, confidence, note,
-          created_at, updated_at, locked_at_utc, graded_at, points_awarded, is_exact_score,
-          is_correct_outcome, competition_id, competition_name, home_team_id, home_team_name,
-          away_team_id, away_team_name, kickoff_utc)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          p.id, p.match_id, p.outcome, p.home_score, p.away_score, p.confidence, p.note,
-          p.created_at, p.updated_at, p.locked_at_utc, p.graded_at, p.points_awarded,
-          p.is_exact_score, p.is_correct_outcome, p.competition_id, p.competition_name,
-          p.home_team_id, p.home_team_name, p.away_team_id, p.away_team_name, p.kickoff_utc,
-        ],
-      );
-    }
-    savePreferences(rollback.preferences);
-    throw error;
-  }
+  });
+  // A backup never carries consent acceptance or installation credentials to another device.
+  savePreferences({...backup.preferences,dataDisclosureVersion:currentPreferences.dataDisclosureVersion});
 }

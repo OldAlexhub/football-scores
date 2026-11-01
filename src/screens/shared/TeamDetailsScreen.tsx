@@ -1,31 +1,38 @@
-import { useRoute } from '@react-navigation/native';
+import { track } from '../../services/telemetry';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { TeamCrest } from '../../components/TeamCrest';
 import { SafeScrollView } from '../../components/SafeScrollView';
 import { ScreenContainer } from '../../components/ScreenContainer';
-import { Card } from '../../components/ui';
-import { fetchForm, resolveTeamById } from '../../providers/providerManager';
+import { SecondaryButton, Card } from '../../components/ui';
+import { fetchForm, fetchMatches, resolveTeamById } from '../../providers/providerManager';
 import { useTheme } from '../../theme/ThemeProvider';
-import type { Team } from '../../types/domain';
+import type { Match, Team } from '../../types/domain';
 
+import {useFavorites} from '../../state/FavoritesContext';
+import {MatchCard} from '../../components/MatchCard';
 export function TeamDetailsScreen() {
+  const navigation=useNavigation<any>(),{favoriteTeamIds,toggleTeam}=useFavorites();
+  const [matches,setMatches]=useState<Match[]>([]);
   const route = useRoute();
   const { teamId } = route.params as { teamId: string };
+  useEffect(() => { track('team_view', { entityId: teamId }); }, [teamId]);
   const { t } = useTranslation();
   const theme = useTheme();
   const [team, setTeam] = useState<Team | null>(null);
   const [form, setForm] = useState<{ lastFive: string[]; homeForm: string[]; awayForm: string[] }>({ lastFive: [], homeForm: [], awayForm: [] });
-  const providerTeamId = useMemo(() => teamId.split(':').slice(1).join(':'), [teamId]);
+  const providerTeamId = useMemo(() => teamId, [teamId]);
   const fallbackName = useMemo(() => providerTeamId.split(':').pop() ?? providerTeamId, [providerTeamId]);
 
   useEffect(() => {
     let mounted = true;
-    Promise.all([resolveTeamById(teamId), fetchForm(providerTeamId)]).then(([resolvedTeam, formResult]) => {
+    Promise.all([resolveTeamById(teamId), fetchForm(providerTeamId),fetchMatches({dateFromUtc:new Date(Date.now()-14*86400000).toISOString(),dateToUtc:new Date(Date.now()+14*86400000).toISOString()})]).then(([resolvedTeam, formResult,fixtures]) => {
       if (!mounted) return;
       setTeam(resolvedTeam);
       setForm(formResult.data);
+      setMatches(fixtures.data.filter(m=>m.homeTeamId===teamId||m.awayTeamId===teamId));
     });
     return () => { mounted = false; };
   }, [providerTeamId, teamId]);
@@ -41,6 +48,7 @@ export function TeamDetailsScreen() {
           {team?.shortName ? <Text style={[styles.shortName, { color: theme.colors.textMuted }]}>{team.shortName}</Text> : null}
         </View>
 
+        <SecondaryButton style={{margin:16}} label={t(favoriteTeamIds.has(teamId)?'common.remove':'makeover.followTeams')} onPress={()=>{void toggleTeam(teamId);}}/>
         <Card style={styles.section}>
           <Heading title={t('matchDetails.recentForm')} />
           <FormPills form={form.lastFive} />
@@ -51,6 +59,7 @@ export function TeamDetailsScreen() {
           <FormPills form={form.awayForm} />
         </Card>
 
+        <View style={{padding:16}}><Heading title={t('makeover.fixtures')}/>{matches.map(m=><MatchCard key={m.id} match={m} onPress={()=>navigation.navigate('MatchDetails',{matchId:m.id,match:m})}/>)}</View>
       </SafeScrollView>
     </ScreenContainer>
   );

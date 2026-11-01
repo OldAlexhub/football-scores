@@ -1,3 +1,5 @@
+import { usePreferences } from './PreferencesContext';
+import { getPreferences } from '../storage/preferencesRepo';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { listReminders } from '../storage/repositories/remindersRepo';
 import { cancelMatchReminder, setMatchReminder } from '../services/reminderService';
@@ -22,6 +24,7 @@ const RemindersContext = createContext<RemindersContextValue>({
 });
 
 export function RemindersProvider({ children }: { children: React.ReactNode }) {
+  const {update} = usePreferences();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,6 +41,7 @@ export function RemindersProvider({ children }: { children: React.ReactNode }) {
 
   const setReminder = useCallback(async (match: Match, offsetMinutes: number) => {
     await setMatchReminder(match, offsetMinutes);
+    await update({ notificationsEnabled: getPreferences().notificationsEnabled });
     await refresh();
   }, [refresh]);
 

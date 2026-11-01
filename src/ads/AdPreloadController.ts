@@ -1,9 +1,11 @@
+import { trackAd } from '../services/telemetry';
 import { AdEventType, InterstitialAd } from 'react-native-google-mobile-ads';
 import { FREQUENCY_CAPS, INTERSTITIAL_AD_UNIT_ID } from '../config/adsConfig';
 import { getAdsInitState, subscribeAdsInitState } from './AdService';
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'failed';
 
+let showingPlacement = 'interstitial_preload';
 let interstitial: InterstitialAd | null = null;
 let loadState: LoadState = 'idle';
 let retryAttempt = 0;
@@ -14,11 +16,15 @@ function createInterstitial(): InterstitialAd {
   const ad = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID, {
     requestNonPersonalizedAdsOnly: false,
   });
+  ad.addAdEventListener(AdEventType.PAID, value => trackAd('ad_paid',showingPlacement,'interstitial',value));
+  ad.addAdEventListener(AdEventType.OPENED, () => trackAd('ad_impression',showingPlacement,'interstitial'));
   ad.addAdEventListener(AdEventType.LOADED, () => {
+    trackAd('ad_loaded','interstitial_preload','interstitial');
     loadState = 'loaded';
     retryAttempt = 0;
   });
   ad.addAdEventListener(AdEventType.ERROR, () => {
+    trackAd('ad_failed','interstitial_preload','interstitial');
     loadState = 'failed';
     scheduleRetry();
   });
@@ -44,6 +50,7 @@ export function preloadNext(): void {
   if (interstitial && (loadState === 'loading' || loadState === 'loaded')) return;
   interstitial = createInterstitial();
   loadState = 'loading';
+  trackAd('ad_request','interstitial_preload','interstitial');
   interstitial.load();
 }
 
@@ -64,7 +71,7 @@ export function isInterstitialLoaded(): boolean {
  * closes, never immediately after — Google's own guidance against
  * back-to-back interstitial requests.
  */
-export function presentPreloadedInterstitial(): Promise<'shown' | 'not_ready' | 'already_showing'> {
+export function presentPreloadedInterstitial(placement = 'completed_action'): Promise<'shown' | 'not_ready' | 'already_showing'> {
   return new Promise(resolve => {
     if (showInFlight) {
       resolve('already_showing');
@@ -74,6 +81,7 @@ export function presentPreloadedInterstitial(): Promise<'shown' | 'not_ready' | 
       resolve('not_ready');
       return;
     }
+    showingPlacement = placement;
     showInFlight = true;
     const ad = interstitial;
     const unsubscribe = ad.addAdEventListener(AdEventType.CLOSED, () => {

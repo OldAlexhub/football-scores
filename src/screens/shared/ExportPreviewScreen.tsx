@@ -36,7 +36,7 @@ export function ExportPreviewScreen() {
       case 'predictions_json':
         return { content: buildPredictionsJson(predictions), ext: 'json', mime: 'application/json', placement: 'prediction_export' };
       case 'matchday_plan':
-        return { content: buildMatchdayJson(items), ext: 'json', mime: 'application/json', placement: 'reminder_batch_done' };
+        return { content: buildMatchdayJson(items), ext: 'json', mime: 'application/json', placement: 'weekend_planner_share' };
       default:
         return { content: '', ext: 'txt', mime: 'text/plain', placement: 'backup_export' };
     }
@@ -49,16 +49,16 @@ export function ExportPreviewScreen() {
       const backup = await buildCompleteBackup();
       const result = await writeAndShareTextFile('football-scores-backup', 'json', JSON.stringify(backup, null, 2), 'application/json');
       setStatus(result.success ? 'success' : 'failure');
-      if (result.success) await maybeShowInterstitial('backup_export');
+
       return;
     }
     const { content, ext, mime, placement } = buildContent();
     const result = await writeAndShareTextFile(kind, ext, content, mime);
     setStatus(result.success ? 'success' : 'failure');
-    if (result.success) await maybeShowInterstitial(placement);
+
   };
 
-  const handleReturn = () => navigation.goBack();
+  const handleReturn = () => {navigation.goBack();if(status==='success')void maybeShowInterstitial(kind==='backup'?'backup_export':buildContent().placement);};
 
   return (
     <ScreenContainer>

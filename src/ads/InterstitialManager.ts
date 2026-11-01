@@ -1,3 +1,4 @@
+import { isNotificationEntry } from './notificationEntry';
 import type { AdPlacementName } from '../types/domain';
 import { recordEligibleAction, recordInterstitialShown } from './AdFrequencyController';
 import { presentPreloadedInterstitial } from './AdPreloadController';
@@ -11,15 +12,17 @@ import { recordAdPlacementShown } from '../storage/adStateRepo';
  * ready, it resolves immediately and the caller continues its navigation.
  */
 export async function maybeShowInterstitial(placement: AdPlacementName): Promise<void> {
+  if(placement==='reminder_batch_done'||isNotificationEntry())return;
   recordEligibleAction(placement);
+  await new Promise<void>(resolve=>setTimeout(resolve,450));
 
   if (!isInterstitialEligibleNow(placement)) {
     return;
   }
 
-  const result = await presentPreloadedInterstitial();
+  const result = await presentPreloadedInterstitial(placement);
   if (result === 'shown') {
-    recordInterstitialShown();
+    recordInterstitialShown(placement);
     recordAdPlacementShown(placement);
   }
 }

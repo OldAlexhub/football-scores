@@ -4,6 +4,7 @@ import { SafeBottomBar } from '../components/SafeBottomBar';
 import { HomeStack } from './HomeStack';
 import { MatchesStack } from './MatchesStack';
 import { PlayersStack } from './PlayersStack';
+import { NewsScreen } from '../screens/news/NewsScreen';
 import { MoreStack } from './MoreStack';
 import { normalizeDefaultTab } from './defaultTab';
 import type { DefaultTab } from '../types/domain';
@@ -28,6 +29,7 @@ export function TabNavigator({ defaultTab }: { defaultTab: DefaultTab }) {
       <Tab.Screen name="HomeTab" component={HomeStack} />
       <Tab.Screen name="MatchesTab" component={MatchesStack} />
       <Tab.Screen name="PlayersTab" component={PlayersStack} />
+      <Tab.Screen name="NewsTab" component={NewsScreen} />
       <Tab.Screen name="MoreTab" component={MoreStack} />
     </Tab.Navigator>
   );

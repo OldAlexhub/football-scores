@@ -1,79 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
-import { SvgUri } from 'react-native-svg';
-import { useTheme } from '../theme/ThemeProvider';
-import { resolveTeamCrest } from '../services/teamCrestResolver';
-import { AppIcon } from './AppIcon';
-
-export function TeamCrest({
-  uri,
-  name,
-  initials: _initials,
-  size = 44,
-}: {
-  uri?: string | null;
-  name: string;
-  initials?: string | null;
-  size?: number;
-}) {
-  const theme = useTheme();
-  const [sourceUri, setSourceUri] = useState<string | null>(uri ?? null);
-  const isSvg = useMemo(() => !!sourceUri && /\.svg(?:\?|$)/i.test(sourceUri), [sourceUri]);
-
-  const findFallback = useCallback(() => {
-    resolveTeamCrest(name).then(setSourceUri).catch(() => setSourceUri(null));
-  }, [name]);
-
-  useEffect(() => {
-    setSourceUri(uri ?? null);
-    if (!uri) findFallback();
-  }, [findFallback, uri]);
-
-  const frameStyle = {
-    width: size,
-    height: size,
-    borderRadius: Math.round(size * 0.28),
-  };
-
-  if (sourceUri) {
-    return (
-      <View
-        accessibilityLabel={`${name} crest`}
-        style={[styles.frame, frameStyle, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.border }]}
-      >
-        {isSvg ? (
-          <SvgUri width={size - 10} height={size - 10} uri={sourceUri} onError={() => sourceUri === uri ? findFallback() : setSourceUri(null)} />
-        ) : (
-          <Image
-            source={{ uri: sourceUri }}
-            resizeMode="contain"
-            onError={() => sourceUri === uri ? findFallback() : setSourceUri(null)}
-            style={{ width: size - 10, height: size - 10 }}
-          />
-        )}
-      </View>
-    );
-  }
-
-  return (
-    <View
-      accessibilityLabel={`${name} crest unavailable`}
-      style={[
-        styles.frame,
-        frameStyle,
-        { backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.border },
-      ]}
-    >
-      <AppIcon name="shield" size={Math.max(18, size * 0.5)} color={theme.colors.textMuted} />
-    </View>
-  );
+﻿import React,{useEffect,useState} from 'react';
+import {Image,View} from 'react-native';
+import {AppIcon} from './AppIcon';
+import {useTheme} from '../theme/ThemeProvider';
+import {SERVER_ORIGIN} from '../config/serverConfig';
+/** Only use the backend's licensed raster cache; never fetch arbitrary provider artwork. */
+export function TeamCrest({uri,name,size=44,onReady}:{uri?:string|null;name:string;initials?:string|null;size?:number;onReady?:()=>void}){
+ const theme=useTheme();const [failed,setFailed]=useState(false);
+ const source=uri?.startsWith('/api/v1/crests/')?`${SERVER_ORIGIN}${uri}`:uri?.startsWith(`${SERVER_ORIGIN}/api/v1/crests/`)?uri:null;
+ useEffect(()=>{setFailed(false);if(!source)onReady?.();},[source]);
+ return <View accessibilityLabel={name} style={{width:size,height:size,alignItems:'center',justifyContent:'center'}}>{source&&!failed?<Image source={{uri:source}} resizeMode="contain" style={{width:size,height:size}} onLoadEnd={onReady} onError={()=>{setFailed(true);onReady?.();}}/>:<View style={{width:size,height:size,borderRadius:size*.25,backgroundColor:theme.colors.accentSoft,alignItems:'center',justifyContent:'center'}}><AppIcon name="shield" size={size*.65} color={theme.colors.accent}/></View>}</View>;
 }
-
-const styles = StyleSheet.create({
-  frame: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
-  },
-});

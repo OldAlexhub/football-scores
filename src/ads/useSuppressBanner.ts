@@ -6,9 +6,9 @@ import { bannerEligibilityController } from './BannerEligibilityController';
  * banner while mounted (editors, previews, destructive confirmations,
  * onboarding, consent forms, permission prompts).
  */
-export function useSuppressBanner(active = true): void {
+export function useSuppressBanner(active = true,sensitive = true): void {
   useEffect(() => {
     if (!active) return undefined;
-    return bannerEligibilityController.suppress();
-  }, [active]);
+    return bannerEligibilityController.suppress(sensitive);
+  }, [active,sensitive]);
 }

@@ -1,95 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Switch, Text, View } from 'react-native';
-import { useTranslation } from 'react-i18next';
-import { SafeScrollView } from '../../components/SafeScrollView';
-import { ScreenContainer } from '../../components/ScreenContainer';
-import { Card, SectionHeader } from '../../components/ui';
-import { usePreferences } from '../../state/PreferencesContext';
-import { useReminders } from '../../state/RemindersContext';
-import { useTheme } from '../../theme/ThemeProvider';
-import { hasNotificationPermission, requestNotificationPermission } from '../../services/notifications';
-
-const OFFSET_LABEL_KEYS: Record<number, string> = {
-  1440: 'reminders.oneDayBefore', 120: 'reminders.twoHoursBefore', 60: 'reminders.oneHourBefore',
-  30: 'reminders.thirtyMinutesBefore', 15: 'reminders.fifteenMinutesBefore', 10: 'reminders.tenMinutesBefore', 0: 'reminders.atKickoff',
-};
-
-export function NotificationSettingsScreen() {
-  const { t } = useTranslation();
-  const theme = useTheme();
-  const { preferences, update } = usePreferences();
-  const { reminders } = useReminders();
-  const [permissionGranted, setPermissionGranted] = useState(false);
-
-  useEffect(() => {
-    hasNotificationPermission().then(setPermissionGranted);
-  }, []);
-
-  const handleToggle = async (value: boolean) => {
-    if (value) {
-      const granted = await requestNotificationPermission();
-      setPermissionGranted(granted);
-      await update({ notificationsEnabled: granted });
-    } else {
-      await update({ notificationsEnabled: false });
-    }
-  };
-
-  return (
-    <ScreenContainer>
-      <SafeScrollView contentBottomPadding={20}>
-        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{t('more.notificationSettings')}</Text>
-
-        <Card style={styles.section}>
-          <View style={styles.row}>
-            <Text style={{ color: theme.colors.textPrimary }}>{t('more.notifications')}</Text>
-            <Switch value={preferences.notificationsEnabled} onValueChange={handleToggle} />
-          </View>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }}>
-            {permissionGranted ? t('common.on') : t('reminders.permissionDenied')}
-          </Text>
-        </Card>
-
-        <SectionHeader title={t('onboarding.reminderDefault')} />
-        <Card style={styles.section}>
-          {[1440, 120, 60, 30, 15, 10, 0].map(offset => (
-            <Text
-              key={offset}
-              onPress={() => update({ defaultReminderOffsetMinutes: offset })}
-              style={{
-                color: preferences.defaultReminderOffsetMinutes === offset ? theme.colors.accent : theme.colors.textPrimary,
-                fontWeight: preferences.defaultReminderOffsetMinutes === offset ? '700' : '400',
-                paddingVertical: 8,
-              }}
-            >
-              {t(OFFSET_LABEL_KEYS[offset])}
-            </Text>
-          ))}
-        </Card>
-
-        <SectionHeader title={t('reminders.title')} />
-        <Card style={styles.section}>
-          {reminders.length === 0 ? (
-            <Text style={{ color: theme.colors.textMuted }}>{t('matchday.emptyBody')}</Text>
-          ) : (
-            reminders.map(r => (
-              <View key={r.id} style={styles.reminderRow}>
-                <Text style={{ color: theme.colors.textPrimary, flex: 1 }}>{r.matchId}</Text>
-                <Text style={{ color: r.status === 'needs_reschedule' ? theme.colors.warning : theme.colors.success, fontSize: 11 }}>
-                  {r.status === 'needs_reschedule' ? t('reminders.needsReschedule') : t('common.on')}
-                </Text>
-              </View>
-            ))
-          )}
-        </Card>
-      </SafeScrollView>
-    </ScreenContainer>
-  );
+﻿import React,{useEffect,useState} from 'react';
+import {Text,View,Switch,AppState} from 'react-native';
+import {useTranslation} from 'react-i18next';
+import {ScreenContainer} from '../../components/ScreenContainer';
+import {SafeScrollView} from '../../components/SafeScrollView';
+import {Card,SecondaryButton} from '../../components/ui';
+import {usePreferences} from '../../state/PreferencesContext';
+import {useReminders} from '../../state/RemindersContext';
+import {useTheme} from '../../theme/ThemeProvider';
+import {hasNotificationPermission,requestNotificationPermission} from '../../services/notifications';
+import {reconcileAllReminders,REMINDER_OFFSET_OPTIONS} from '../../services/reminderService';
+import {preferencesStorage} from '../../storage/mmkvStorage';
+import {useSuppressBanner} from '../../ads/useSuppressBanner';
+const keys:Record<number,string>={1440:'reminders.oneDayBefore',120:'reminders.twoHoursBefore',60:'reminders.oneHourBefore',30:'reminders.thirtyMinutesBefore',15:'reminders.fifteenMinutesBefore',10:'reminders.tenMinutesBefore',0:'reminders.atKickoff'};
+export function NotificationSettingsScreen(){
+ const {t}=useTranslation(),theme=useTheme(),{preferences,update}=usePreferences(),{reminders,refresh}=useReminders();const [permission,setPermission]=useState(false),[syncing,setSyncing]=useState(false),[lastSync,setLastSync]=useState(preferencesStorage.getString('reminder_last_sync'));useSuppressBanner();
+ useEffect(()=>{void hasNotificationPermission().then(setPermission);const sub=AppState.addEventListener('change',s=>{if(s==='active')void hasNotificationPermission().then(setPermission);});return()=>sub.remove();},[]);
+ const toggle=async(value:boolean,favorites=false)=>{const granted=value?await requestNotificationPermission():permission;setPermission(granted);await update(favorites?{favoriteTeamReminders:value&&granted,...(value?{notificationsEnabled:granted}:{})}:{notificationsEnabled:value&&granted});await reconcileAllReminders();await refresh();};
+ return <ScreenContainer><SafeScrollView contentBottomPadding={30}><View style={{padding:20,gap:18}}><Text style={{fontSize:28,fontWeight:'800',color:theme.colors.textPrimary}}>{t('more.notificationSettings')}</Text><Card><View style={{flexDirection:'row',alignItems:'center',gap:12}}><Text style={{color:theme.colors.textPrimary,flex:1,fontWeight:'700'}}>{t('more.notifications')}</Text><Switch value={preferences.notificationsEnabled&&permission} onValueChange={v=>{void toggle(v);}}/></View><Text style={{color:theme.colors.textMuted,fontSize:12,lineHeight:20,marginTop:10}}>{permission?t('makeover.reminderHelp'):t('reminders.permissionDenied')}</Text></Card><Card><View style={{flexDirection:'row',alignItems:'center',gap:12}}><Text style={{color:theme.colors.textPrimary,flex:1,fontWeight:'700'}}>{t('makeover.favoriteReminders')}</Text><Switch value={!!preferences.favoriteTeamReminders} onValueChange={v=>{void toggle(v,true);}}/></View></Card><Card><Text style={{color:theme.colors.textPrimary,fontWeight:'700',marginBottom:10}}>{t('onboarding.reminderDefault')}</Text>{REMINDER_OFFSET_OPTIONS.map(offset=><Text key={offset} accessibilityRole="radio" accessibilityState={{checked:preferences.defaultReminderOffsetMinutes===offset}} onPress={()=>{void update({defaultReminderOffsetMinutes:offset});}} style={{color:preferences.defaultReminderOffsetMinutes===offset?theme.colors.accent:theme.colors.textSecondary,paddingVertical:13,fontSize:14}}>{t(keys[offset])}</Text>)}</Card><Card><Text style={{color:theme.colors.textPrimary,fontWeight:'700'}}>{t('makeover.readyReminders')}: {reminders.filter(r=>r.status==='scheduled').length}</Text><Text style={{color:theme.colors.textMuted,fontSize:12,marginTop:8}}>{t('makeover.lastSync')}: {lastSync?new Date(lastSync).toLocaleString(preferences.language):t('makeover.neverSynced')}</Text><SecondaryButton style={{marginTop:15}} disabled={syncing} label={syncing?t('common.loading'):t('makeover.syncNow')} onPress={async()=>{setSyncing(true);try{await reconcileAllReminders();await refresh();setLastSync(preferencesStorage.getString('reminder_last_sync'));}finally{setSyncing(false);}}}/></Card></View></SafeScrollView></ScreenContainer>;
 }
-
-const styles = StyleSheet.create({
-  title: { fontSize: 20, fontWeight: '800', paddingHorizontal: 16, paddingTop: 8, marginBottom: 10 },
-  section: { marginHorizontal: 16, marginBottom: 4 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  reminderRow: { flexDirection: 'row', paddingVertical: 6 },
-});

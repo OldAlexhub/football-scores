@@ -1,190 +1,33 @@
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useCallback, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { useTranslation } from 'react-i18next';
-import { AppIcon } from '../../components/AppIcon';
-import { InFeedNativeAd } from '../../ads/InFeedNativeAd';
-import { MatchCard } from '../../components/MatchCard';
-import { NewsThumb } from '../../components/NewsThumb';
-import { SafeScrollView } from '../../components/SafeScrollView';
-import { ScreenContainer } from '../../components/ScreenContainer';
-import { Card, EmptyState, LoadingState, SectionHeader } from '../../components/ui';
-import { useHomeFeed, type FollowedPlayerLite } from '../../hooks/useHomeFeed';
-import { listPlayerMeta } from '../../storage/repositories/followedPlayersRepo';
-import { useReminders } from '../../state/RemindersContext';
-import { useTheme } from '../../theme/ThemeProvider';
-import type { HomeStackParamList } from '../../navigation/types';
-import type { Match, NewsArticle } from '../../types/domain';
-
-type Props = NativeStackScreenProps<HomeStackParamList, 'HomeDashboard'>;
-
-export function HomeDashboardScreen({ navigation }: Props) {
-  const { t } = useTranslation();
-  const theme = useTheme();
-  const { getReminderFor } = useReminders();
-  const [followedPlayers, setFollowedPlayers] = useState<FollowedPlayerLite[]>([]);
-
-  useFocusEffect(useCallback(() => {
-    let active = true;
-    listPlayerMeta()
-      .then(list => { if (active) setFollowedPlayers(list.map(p => ({ name: p.name, clubName: p.clubName }))); })
-      .catch(() => undefined);
-    return () => { active = false; };
-  }, []));
-
-  const feed = useHomeFeed(followedPlayers);
-
-  const openMatch = (match: Match) => {
-    navigation.navigate('MatchDetails', { matchId: match.id, match });
-  };
-
-  const openArticle = (article: NewsArticle) => {
-    void Linking.openURL(article.link).catch(() => undefined);
-  };
-
-  const renderMatch = (match: Match) => (
-    <MatchCard
-      key={match.id}
-      match={match}
-      hasReminder={getReminderFor(match.id)?.status === 'scheduled'}
-      onPress={() => openMatch(match)}
-    />
-  );
-
-  const feedMatchCount = new Set(
-    [feed.matchOfTheDay, ...feed.liveNow, ...feed.today]
-      .filter((match): match is Match => !!match)
-      .map(match => match.id),
-  ).size;
-
-  const NewsRow = ({ article }: { article: NewsArticle }) => (
-    <Pressable onPress={() => openArticle(article)}>
-      <Card style={styles.newsCard}>
-        <NewsThumb uri={article.imageUrl} size={60} />
-        <View style={styles.newsText}>
-          <Text style={[styles.newsTitle, { color: theme.colors.textPrimary }]} numberOfLines={2}>{article.title}</Text>
-          <Text style={[styles.newsSource, { color: theme.colors.accent }]}>{article.sourceName}</Text>
-        </View>
-      </Card>
-    </Pressable>
-  );
-
-  const SeeAll = ({ onPress }: { onPress: () => void }) => (
-    <Pressable onPress={onPress} hitSlop={8} style={styles.seeAll}>
-      <Text style={[styles.seeAllText, { color: theme.colors.accent }]}>{t('home.seeAllMatches')}</Text>
-      <AppIcon name="chevronRight" size={15} color={theme.colors.accent} />
-    </Pressable>
-  );
-
-  if (feed.loading) {
-    return (
-      <ScreenContainer>
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{t('home.title')}</Text>
-        </View>
-        <LoadingState label={t('common.loading')} />
-      </ScreenContainer>
-    );
-  }
-
-  return (
-    <ScreenContainer>
-      <SafeScrollView refreshing={feed.refreshing} onRefresh={feed.refresh} contentBottomPadding={8}>
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{t('home.title')}</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>{t('home.subtitle')}</Text>
-        </View>
-
-        {feed.matchOfTheDay ? (
-          <View style={styles.section}>
-            <SectionHeader title={t('home.matchOfTheDay')} />
-            {renderMatch(feed.matchOfTheDay)}
-          </View>
-        ) : null}
-
-        {feed.liveNow.length > 0 ? (
-          <View style={styles.section}>
-            <SectionHeader title={t('home.liveNow')} />
-            {feed.liveNow.slice(0, 6).map(renderMatch)}
-          </View>
-        ) : null}
-
-        {feed.today.length > 0 ? (
-          <View style={styles.section}>
-            <SectionHeader
-              title={t('home.today')}
-              action={<SeeAll onPress={() => navigation.getParent()?.navigate('MatchesTab' as never)} />}
-            />
-            {feed.today.map(renderMatch)}
-          </View>
-        ) : null}
-
-        {feedMatchCount >= 4 ? <View style={styles.adWrap}><InFeedNativeAd /></View> : null}
-
-        <View style={styles.section}>
-          <SectionHeader title={t('home.following')} />
-          {feed.followingFixtures.length === 0 && feed.followingNews.length === 0 ? (
-            <EmptyState
-              title={t('home.following')}
-              body={t('home.followingEmpty')}
-              action={
-                <Pressable
-                  onPress={() => navigation.getParent()?.navigate('PlayersTab' as never)}
-                  style={[styles.cta, { backgroundColor: theme.colors.accent }]}
-                >
-                  <Text style={[styles.ctaText, { color: theme.colors.accentText }]}>{t('home.followingEmptyCta')}</Text>
-                </Pressable>
-              }
-            />
-          ) : (
-            <>
-              {feed.followingFixtures.map(renderMatch)}
-              {feed.followingNews.map(article => <NewsRow key={article.id} article={article} />)}
-            </>
-          )}
-        </View>
-
-        {feed.topStories.length > 0 ? (
-          <View style={styles.section}>
-            <SectionHeader
-              title={t('home.topStories')}
-              action={<SeeAll onPress={() => navigation.navigate('News')} />}
-            />
-            {feed.topStories.map(article => <NewsRow key={article.id} article={article} />)}
-          </View>
-        ) : null}
-
-        {feed.transfers.length > 0 ? (
-          <View style={styles.section}>
-            <SectionHeader
-              title={t('home.transfers')}
-              action={<SeeAll onPress={() => navigation.navigate('News')} />}
-            />
-            {feed.transfers.slice(0, 3).map(article => <NewsRow key={article.id} article={article} />)}
-          </View>
-        ) : null}
-
-        {feed.topStories.length === 0 && feed.today.length === 0 && !feed.matchOfTheDay ? (
-          <EmptyState title={t('home.title')} body={t('home.noFeed')} />
-        ) : null}
-      </SafeScrollView>
-    </ScreenContainer>
-  );
+import React,{useMemo} from 'react';
+import {Pressable,StyleSheet,Text,View} from 'react-native';
+import {useNavigation} from '@react-navigation/native';
+import {useTranslation} from 'react-i18next';
+import {ScreenContainer} from '../../components/ScreenContainer';
+import {SafeScrollView} from '../../components/SafeScrollView';
+import {MatchCard} from '../../components/MatchCard';
+import {AppIcon} from '../../components/AppIcon';
+import {EmptyState,LoadingState,SectionHeader} from '../../components/ui';
+import {useMatchesRange} from '../../hooks/useMatchesRange';
+import {useFavorites} from '../../state/FavoritesContext';
+import {useReminders} from '../../state/RemindersContext';
+import {usePreferences} from '../../state/PreferencesContext';
+import {useTheme} from '../../theme/ThemeProvider';
+import {startOfLocalDay,addDays,toLocalDateKey} from '../../utils/dates';
+import {InFeedNativeAd} from '../../ads/InFeedNativeAd';
+import {useSuppressBanner} from '../../ads/useSuppressBanner';
+import {useIsFocused} from '@react-navigation/native';
+import type {Match} from '../../types/domain';
+export function HomeDashboardScreen(){
+ const {t}=useTranslation(),theme=useTheme(),navigation=useNavigation<any>(),{preferences}=usePreferences(),{favoriteTeamIds}=useFavorites(),{reminders,getReminderFor,setReminder,cancelReminder}=useReminders();
+ const from=useMemo(()=>startOfLocalDay(new Date()).toISOString(),[]),to=useMemo(()=>addDays(new Date(),7).toISOString(),[]);const result=useMatchesRange(from,to);const focused=useIsFocused();
+ const today=toLocalDateKey(new Date().toISOString());const todays=result.matches.filter(m=>(m.kickoffUtc?toLocalDateKey(m.kickoffUtc):m.fixtureDate)===today);const favorites=result.matches.filter(m=>favoriteTeamIds.has(m.homeTeamId)||favoriteTeamIds.has(m.awayTeamId));const upcoming=(favorites.length?favorites:result.matches).filter(m=>m.status==='scheduled'&&(!m.kickoffUtc||Date.parse(m.kickoffUtc)>Date.now())).sort((a,b)=>((a.kickoffUtc||'9999')<(b.kickoffUtc||'9999')?-1:1));const hero=upcoming[0];const list=todays.filter(m=>m.id!==hero?.id).slice(0,18);useSuppressBanner(focused&&list.length>=6,false);
+ const open=(match:Match)=>navigation.navigate('MatchDetails',{matchId:match.id,match});
+ const remind=(m:Match)=>{if(getReminderFor(m.id))void cancelReminder(m.id);else void setReminder(m,preferences.defaultReminderOffsetMinutes);};
+ return <ScreenContainer><SafeScrollView refreshing={result.refreshing} onRefresh={()=>{void result.refresh(true);}} contentBottomPadding={26}><View style={styles.header}><View><Text style={[styles.kicker,{color:theme.colors.accent}]}>FOOTBALL / SCORES</Text><Text style={[styles.title,{color:theme.colors.textPrimary}]}>{t('makeover.matchday')}</Text><Text style={[styles.subtitle,{color:theme.colors.textSecondary}]}>{new Date().toLocaleDateString(preferences.language,{weekday:'long',month:'long',day:'numeric'})}</Text></View><Pressable accessibilityLabel={t('more.notificationSettings')} style={[styles.bell,{backgroundColor:theme.colors.surfaceAlt}]} onPress={()=>navigation.navigate('MoreTab',{screen:'NotificationSettings'})}><AppIcon name="bell" color={theme.colors.accent}/></Pressable></View>
+ <View style={styles.stats}>{[{value:todays.length,label:t('makeover.fixtures'),icon:'ball'},{value:favoriteTeamIds.size,label:t('makeover.yourTeams'),icon:'star'},{value:reminders.filter(r=>r.status==='scheduled').length,label:t('reminders.title'),icon:'bell'}].map(s=><View key={s.label} style={[styles.stat,{backgroundColor:theme.colors.surface,borderColor:theme.colors.border}]}><AppIcon name={s.icon as any} size={16} color={theme.colors.accent}/><Text style={[styles.number,{color:theme.colors.textPrimary}]}>{s.value}</Text><Text style={[styles.statLabel,{color:theme.colors.textMuted}]}>{s.label}</Text></View>)}</View>
+ {result.errorMessage?<Pressable onPress={()=>navigation.navigate('MoreTab',{screen:'DataSources'})} style={styles.notice}><AppIcon name="globe" size={16} color={theme.colors.accent}/><Text style={{color:theme.colors.textSecondary,fontSize:11,lineHeight:17,flex:1}}>{result.errorMessage}</Text><AppIcon name="chevronRight" size={15} color={theme.colors.textMuted}/></Pressable>:null}
+ {result.loading?<LoadingState label={t('common.loading')}/>:<>{hero?<><View style={styles.inset}><SectionHeader title={t('makeover.nextUp')}/></View><View style={styles.inset}><MatchCard featured match={hero} hasReminder={getReminderFor(hero.id)?.status==='scheduled'} onPress={()=>open(hero)} onToggleReminder={()=>remind(hero)}/></View></>:null}<View style={styles.inset}><SectionHeader title={t('makeover.todayFixtures')} action={<Pressable onPress={()=>navigation.navigate('MatchesTab')}><Text style={{color:theme.colors.accent,fontSize:11,fontWeight:'700'}}>{t('makeover.allMatches')}</Text></Pressable>}/></View><View style={styles.inset}>{list.length?list.map((match,index)=><React.Fragment key={match.id}><MatchCard match={match} hasReminder={getReminderFor(match.id)?.status==='scheduled'} onPress={()=>open(match)} onToggleReminder={()=>remind(match)}/>{index===5||index===17?<InFeedNativeAd compact placement={`home_feed_${index}`}/>:null}</React.Fragment>):<EmptyState title={t('makeover.todayFixtures')} body={t('makeover.noFixtures')}/>}</View></>}
+ <Pressable onPress={()=>navigation.navigate('PlayersTab')} style={[styles.follow,{backgroundColor:theme.colors.accentSoft,borderColor:theme.colors.border}]}><View style={{flex:1}}><Text style={{color:theme.colors.accent,fontSize:17,fontWeight:'800'}}>{t('makeover.followTeams')}</Text><Text style={{color:theme.colors.textSecondary,fontSize:12,lineHeight:19,marginTop:7}}>{t('makeover.noFollowingBody')}</Text></View><AppIcon name="star" size={30} color={theme.colors.accent}/></Pressable><Text style={[styles.footer,{color:theme.colors.textMuted}]}>{t('makeover.dataCurrent')}</Text>
+ </SafeScrollView></ScreenContainer>;
 }
-
-const styles = StyleSheet.create({
-  header: { paddingHorizontal: 16, paddingTop: 9, paddingBottom: 4 },
-  title: { fontSize: 27, lineHeight: 32, fontWeight: '900', letterSpacing: -0.7 },
-  subtitle: { fontSize: 12, fontWeight: '600', marginTop: 2 },
-  section: { paddingHorizontal: 16, paddingTop: 6 },
-  adWrap: { paddingHorizontal: 16, paddingTop: 10 },
-  newsCard: { flexDirection: 'row', gap: 10, marginTop: 8, alignItems: 'center' },
-  newsText: { flex: 1 },
-  newsTitle: { fontSize: 13, fontWeight: '700', lineHeight: 18 },
-  newsSource: { fontSize: 10, fontWeight: '800', marginTop: 4 },
-  seeAll: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  seeAllText: { fontSize: 12, fontWeight: '800' },
-  cta: { marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, alignSelf: 'flex-start' },
-  ctaText: { fontSize: 13, fontWeight: '800' },
-});
+const styles=StyleSheet.create({header:{padding:20,paddingTop:18,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},kicker:{fontSize:10,fontWeight:'900',letterSpacing:2,marginBottom:10},title:{fontSize:33,fontWeight:'800',letterSpacing:-1.2},subtitle:{fontSize:12,marginTop:8},bell:{width:45,height:45,borderRadius:15,alignItems:'center',justifyContent:'center'},stats:{flexDirection:'row',gap:10,paddingHorizontal:20,marginVertical:14},stat:{flex:1,padding:14,borderWidth:1,borderRadius:17,gap:7},number:{fontSize:27,fontWeight:'800',fontVariant:['tabular-nums']},statLabel:{fontSize:10},notice:{marginHorizontal:20,paddingVertical:5,flexDirection:'row',gap:9,alignItems:'center',marginBottom:8},inset:{paddingHorizontal:18},follow:{margin:20,padding:20,borderRadius:22,borderWidth:1,flexDirection:'row',alignItems:'center',gap:20},footer:{fontSize:10,textAlign:'center',marginBottom:12}});

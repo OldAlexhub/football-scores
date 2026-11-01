@@ -1,3 +1,6 @@
+import { SocialShareSheet } from '../../components/SocialShareSheet';
+import { track } from '../../services/telemetry';
+import { useWatchPlan } from '../../state/WatchPlanContext';
 import { useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
@@ -23,6 +26,8 @@ import { formatKickoffDate, formatKickoffTime } from '../../utils/dates';
 import type { LineupPlayer, Match, MatchAnalysis, MatchEventType, MatchPrediction, MatchStatistic, ProviderId } from '../../types/domain';
 
 const ANALYSIS_SOURCE_LABEL: Record<ProviderId, string> = {
+  server: 'Football Scores',
+  manual: 'Verified import',
   espn: 'ESPN',
   'api-football': 'API-Football',
   thesportsdb: 'TheSportsDB',
@@ -35,10 +40,7 @@ const ANALYSIS_SOURCE_LABEL: Record<ProviderId, string> = {
 
 type Nav = NativeStackNavigationProp<MatchesStackParamList, 'MatchDetails'>;
 
-function providerPart(id: string): string {
-  const separator = id.indexOf(':');
-  return separator === -1 ? id : id.slice(separator + 1);
-}
+function providerPart(id: string): string { return id; }
 
 function SectionTitle({ icon, title }: { icon: AppIconName; title: string }) {
   const theme = useTheme();
@@ -94,12 +96,15 @@ export function MatchDetailsScreen() {
   const theme = useTheme();
   const isFocused = useIsFocused();
   const params = route.params as MatchDetailsParams;
+  const { addOrUpdate } = useWatchPlan();
+  useEffect(() => { track('match_view', { entityId: params.matchId }); }, [params.matchId]);
   const { preferences } = usePreferences();
   const { getReminderFor, setReminder, cancelReminder } = useReminders();
 
   const [match, setMatch] = useState<Match | null>(params.match ?? null);
   const [loading, setLoading] = useState(!params.match);
   const [notFound, setNotFound] = useState(false);
+  const [shareOpen,setShareOpen]=useState(false);
   const [h2h, setH2h] = useState<{ matches: Match[]; totalMeetings: number } | null>(null);
   const [homeForm, setHomeForm] = useState<string[]>([]);
   const [awayForm, setAwayForm] = useState<string[]>([]);
@@ -108,9 +113,9 @@ export function MatchDetailsScreen() {
   const [insightsLoading, setInsightsLoading] = useState(false);
 
   useEffect(() => {
-    if (params.match) return;
+
     let mounted = true;
-    setLoading(true);
+    if(!params.match)setLoading(true);
     resolveMatchById(params.matchId).then(result => {
       if (!mounted) return;
       if (result) setMatch(result);
@@ -167,7 +172,7 @@ export function MatchDetailsScreen() {
 
   const reminder = getReminderFor(match.id);
   const timeLabel = formatKickoffTime(match.kickoffUtc, match.kickoffUnknown, preferences.clock, preferences.language, t('common.timeNotConfirmed'));
-  const dateLabel = match.kickoffUtc ? formatKickoffDate(match.kickoffUtc, preferences.language) : t('common.unknown');
+  const dateLabel = match.kickoffUtc ? formatKickoffDate(match.kickoffUtc, preferences.language) : match.fixtureDate||t('common.unknown');
   const score = match.currentScore ?? match.fullTimeScore;
   const isLive = match.status === 'live' || match.status === 'half_time';
 
@@ -202,6 +207,9 @@ export function MatchDetailsScreen() {
           <Text style={[styles.dateTime, { color: theme.colors.textMuted }]}>{dateLabel}  ·  {timeLabel}</Text>
         </View>
 
+        <View style={{paddingHorizontal:18,gap:10,marginBottom:18}}><SecondaryButton label={t('social.title')} onPress={()=>setShareOpen(true)}/><SecondaryButton label={t('makeover.privatePredictions')} onPress={() => (navigation as any).getParent()?.navigate('MoreTab',{screen:'PredictionEditor',params:{matchId:match.id,match}})} /><SecondaryButton label={t('makeover.savedMatches')} onPress={() => { void addOrUpdate(match.id,{manuallyAdded:true}); }} /></View>
+        {match.analytics?.comebackWin?<Card style={styles.section}><Text style={{color:theme.colors.accent,fontWeight:'800',fontSize:20}}>{t('social.comeback')}</Text><Text style={{color:theme.colors.textSecondary,marginTop:8}}>{match.analytics.maxDeficitOvercome} {t('makeover.results')}</Text></Card>:null}
+        {match.goalEvents?.length?<Card style={styles.section}><SectionTitle icon="ball" title={t('matchDetails.analysis')}/>{match.goalEvents.map((g,i)=><View key={g.id||i} style={{flexDirection:'row',paddingVertical:12,gap:16,borderBottomWidth:1,borderBottomColor:theme.colors.border}}><Text style={{color:theme.colors.accent,fontWeight:'700'}}>{g.minute??''}'</Text><Text style={{color:theme.colors.textPrimary,flex:1}}>{g.scorer||t('makeover.results')}</Text><Text style={{color:theme.colors.textPrimary,fontWeight:'800'}}>{g.home} : {g.away}</Text></View>)}</Card>:null}
         {modelPrediction ? (
           <Card style={styles.section}>
             <SectionTitle icon="spark" title={t('matchDetails.predictedScore')} />
@@ -360,6 +368,7 @@ export function MatchDetailsScreen() {
           />
         </View> : null}
       </SafeScrollView>
+      {shareOpen?<SocialShareSheet key={match.id} match={match} onClose={()=>setShareOpen(false)}/>:null}
     </ScreenContainer>
   );
 }

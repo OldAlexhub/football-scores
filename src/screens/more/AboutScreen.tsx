@@ -8,7 +8,7 @@ import { ScreenContainer } from '../../components/ScreenContainer';
 import { Card, SecondaryButton, SectionHeader } from '../../components/ui';
 import { useTheme } from '../../theme/ThemeProvider';
 
-const APP_VERSION = '1.0.0';
+import { SERVER_ORIGIN, APP_VERSION } from '../../config/serverConfig';
 const SUPPORT_EMAIL = 'info@oldalexhub.com';
 
 export function AboutScreen() {
@@ -39,9 +39,10 @@ export function AboutScreen() {
 
         <SectionHeader title={t('about.dataAttribution')} />
         <Card style={styles.card}>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 18 }}>OpenFootball, TheSportsDB, ESPN, football-data.org, API-Football</Text>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 18 }}>OpenFootball (CC0) / OpenLigaDB (ODbL 1.0). Club logos: licensed Wikimedia Commons images.</Text>
         </Card>
 
+        <SecondaryButton label={t('about.dataAttribution')} onPress={()=>{void Linking.openURL(`${SERVER_ORIGIN}/credits`);}} style={{margin:16}}/>
         <SectionHeader title={t('about.contact')} />
         <Pressable
           accessibilityRole="link"

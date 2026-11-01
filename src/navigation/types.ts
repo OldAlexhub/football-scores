@@ -52,6 +52,11 @@ export type MatchdayStackParamList = {
 };
 
 export type MoreStackParamList = {
+  MyData: undefined;
+  MatchdayTools: undefined;
+  PredictHome: undefined;
+  PredictionEditor: MatchDetailsParams;
+  PredictionDetails: {matchId: string};
   MoreHome: undefined;
   FavoriteCompetitions: undefined;
   FavoriteTeams: undefined;
@@ -63,7 +68,7 @@ export type MoreStackParamList = {
   DataSources: undefined;
   DataManagement: undefined;
   BackupRestore: undefined;
-  ExportPreview: { kind: 'backup' };
+  ExportPreview: { kind: 'backup' | 'predictions_csv' | 'predictions_json' | 'stats_card' };
   AdvertisingPrivacyChoices: undefined;
   PrivacyPolicy: undefined;
   About: undefined;
@@ -77,6 +82,7 @@ export type MoreStackParamList = {
 };
 
 export type MainTabParamList = {
+  NewsTab: undefined;
   HomeTab: NavigatorScreenParams<HomeStackParamList>;
   MatchesTab: NavigatorScreenParams<MatchesStackParamList>;
   PlayersTab: NavigatorScreenParams<PlayersStackParamList>;
@@ -84,6 +90,7 @@ export type MainTabParamList = {
 };
 
 export type RootStackParamList = {
+  DataDisclosure: undefined;
   Onboarding: undefined;
   MainTabs: NavigatorScreenParams<MainTabParamList>;
 };

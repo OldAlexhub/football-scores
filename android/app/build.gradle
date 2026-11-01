@@ -94,8 +94,9 @@ android {
         applicationId "com.oldalexhub.footballscores"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6
-        versionName "1.0.0"
+        versionCode 8
+        versionName "2.0.0"
+        buildConfigField "String", "FOOTBALL_API_ORIGIN", '"https://soccer.server.oldalexhub.com"'
     }
     signingConfigs {
         debug {
@@ -116,6 +117,7 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            buildConfigField "String", "FOOTBALL_API_ORIGIN", '"' + (project.findProperty('FOOTBALL_API_ORIGIN') ?: 'https://soccer.server.oldalexhub.com') + '"'
             // Keep QA/test-ad builds installed beside the signed production
             // app so verification never replaces production data or traffic.
             applicationIdSuffix ".debug"
@@ -136,6 +138,7 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

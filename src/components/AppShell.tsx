@@ -14,10 +14,14 @@ import { PreferencesProvider, usePreferences } from '../state/PreferencesContext
 import { PredictionsProvider } from '../state/PredictionsContext';
 import { RemindersProvider } from '../state/RemindersContext';
 import { WatchPlanProvider } from '../state/WatchPlanContext';
+import { ServerRuntimeEffect } from '../state/ServerRuntimeEffect';
+import { track } from '../services/telemetry';
+import { createNavigationContainerRef } from '@react-navigation/native';
 import { WidgetSyncEffect } from '../state/WidgetSyncEffect';
 import { ThemeProvider, useTheme } from '../theme/ThemeProvider';
 import { LoadingState } from './ui';
 
+const navigationRef = createNavigationContainerRef<any>();
 const initialPreferences = getPreferences();
 initI18n(initialPreferences.language);
 if (I18nManager.isRTL !== isRtlLanguage(initialPreferences.language)) {
@@ -40,7 +44,7 @@ function ThemedNavigationContainer({ children }: { children: React.ReactNode }) 
     },
   };
   return (
-    <NavigationContainer theme={navTheme} linking={linkingConfig as never}>
+    <NavigationContainer ref={navigationRef} onStateChange={() => { const route = navigationRef.getCurrentRoute(); if(route) track('screen_view', { screen: route.name }); }} theme={navTheme} linking={linkingConfig as never}>
       <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
       {children}
     </NavigationContainer>
@@ -58,6 +62,7 @@ function ThemedApp() {
               <PredictionsProvider>
                 <AdProvider>
                   <WidgetSyncEffect />
+                  <ServerRuntimeEffect />
                   <RootNavigator />
                 </AdProvider>
               </PredictionsProvider>

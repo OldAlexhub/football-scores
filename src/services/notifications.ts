@@ -29,11 +29,10 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 export async function hasNotificationPermission(): Promise<boolean> {
-  if (Platform.OS === 'android' && Platform.Version < 33) {
-    return true;
-  }
   const settings = await notifee.getNotificationSettings();
-  return settings.authorizationStatus >= AuthorizationStatus.AUTHORIZED;
+  if (settings.authorizationStatus < AuthorizationStatus.AUTHORIZED) return false;
+  const channel = await notifee.getChannel(CHANNEL_ID);
+  return !channel?.blocked;
 }
 
 export interface ScheduleReminderInput {

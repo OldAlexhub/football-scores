@@ -1,82 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { useTranslation } from 'react-i18next';
-import { SafeScrollView } from '../../components/SafeScrollView';
-import { ScreenContainer } from '../../components/ScreenContainer';
-import { Card, DangerButton, SectionHeader } from '../../components/ui';
-import { LIVE_PROVIDERS, getProviderHealth } from '../../providers/providerManager';
-import { clearAllCache, getCacheEntryCount, getCacheSizeBytes } from '../../storage/repositories/providerCacheRepo';
-import { useTheme } from '../../theme/ThemeProvider';
-
-export function DataSourcesScreen() {
-  const { t } = useTranslation();
-  const theme = useTheme();
-  const [cacheSize, setCacheSize] = useState(0);
-  const [cacheCount, setCacheCount] = useState(0);
-  const health = getProviderHealth();
-
-  const refreshCacheStats = async () => {
-    setCacheSize(await getCacheSizeBytes());
-    setCacheCount(await getCacheEntryCount());
-  };
-
-  useEffect(() => {
-    void refreshCacheStats();
-  }, []);
-
-  return (
-    <ScreenContainer>
-      <SafeScrollView contentBottomPadding={20}>
-        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{t('dataSources.title')}</Text>
-        <Text style={{ color: theme.colors.textMuted, paddingHorizontal: 16, marginBottom: 10 }}>{t('dataSources.delayExplanation')}</Text>
-
-        <SectionHeader title={t('dataSources.activeProviders')} />
-        {LIVE_PROVIDERS.map(provider => {
-          const providerHealth = health.find(h => h.providerId === provider.id);
-          return (
-            <Card key={provider.id} style={styles.card}>
-              <Text style={{ color: theme.colors.textPrimary, fontWeight: '700' }}>{provider.displayName}</Text>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 4 }}>
-                {provider.capabilities.requiresApiKey
-                  ? provider.isConfigured() ? t('dataSources.keyConfigured') : t('dataSources.keyMissing')
-                  : t('dataSources.keyConfigured')}
-              </Text>
-              <View style={styles.row}>
-                <Text style={{ color: theme.colors.textMuted, fontSize: 11, flex: 1 }}>{t('dataSources.lastSuccess')}</Text>
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>{providerHealth?.lastSuccessAtUtc ? new Date(providerHealth.lastSuccessAtUtc).toLocaleString() : '—'}</Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={{ color: theme.colors.textMuted, fontSize: 11, flex: 1 }}>{t('dataSources.lastFailure')}</Text>
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>{providerHealth?.lastFailureAtUtc ? new Date(providerHealth.lastFailureAtUtc).toLocaleString() : '—'}</Text>
-              </View>
-            </Card>
-          );
-        })}
-
-        <SectionHeader title={t('dataSources.cacheSize')} />
-        <Card style={styles.card}>
-          <Text style={{ color: theme.colors.textPrimary }}>{cacheCount} entries · {(cacheSize / 1024).toFixed(1)} KB</Text>
-          <DangerButton
-            label={t('dataSources.clearCache')}
-            style={{ marginTop: 10 }}
-            onPress={async () => {
-              await clearAllCache();
-              await refreshCacheStats();
-            }}
-          />
-        </Card>
-
-        <SectionHeader title={t('dataSources.attribution')} />
-        <Card style={styles.card}>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>ESPN (schedules, live scores and analysis), OpenFootball (public domain schedules and results), TheSportsDB (fixtures, crests and player profiles), OpenLigaDB (German football), Wikipedia (player biographies). football-data.org and API-Football are supported if a key is added.</Text>
-        </Card>
-      </SafeScrollView>
-    </ScreenContainer>
-  );
+﻿import React,{useEffect,useState} from 'react';
+import {Text,View,TextInput} from 'react-native';
+import {useTranslation} from 'react-i18next';
+import {ScreenContainer} from '../../components/ScreenContainer';
+import {SafeScrollView} from '../../components/SafeScrollView';
+import {Card,SecondaryButton,LoadingState} from '../../components/ui';
+import {useTheme} from '../../theme/ThemeProvider';
+import {serverRequest,type ApiEnvelope,type CoverageRow} from '../../services/serverApi';
+export function DataSourcesScreen(){
+ const {t}=useTranslation(),theme=useTheme();const [rows,setRows]=useState<CoverageRow[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[search,setSearch]=useState('');
+ const load=async()=>{setLoading(true);try{const r=await serverRequest<ApiEnvelope<CoverageRow[]>>('/coverage');setRows(r.data);setError('');}catch{setError(t('makeover.offline'));}finally{setLoading(false);}};useEffect(()=>{void load();},[]);
+ return <ScreenContainer><SafeScrollView refreshing={loading} onRefresh={()=>{void load();}} contentBottomPadding={25}><View style={{padding:20,gap:14}}><Text style={{color:theme.colors.textPrimary,fontSize:29,fontWeight:'800'}}>{t('makeover.coverage')}</Text><Text style={{color:theme.colors.textSecondary,fontSize:13,lineHeight:22}}>{t('makeover.coverageHelp')}</Text><TextInput value={search} onChangeText={setSearch} placeholder={t('matches.chooseCompetition')} placeholderTextColor={theme.colors.textMuted} style={{color:theme.colors.textPrimary,backgroundColor:theme.colors.surface,borderRadius:12,padding:15}}/>{error?<Text style={{color:theme.colors.warning}}>{error}</Text>:null}{loading&&!rows.length?<LoadingState label={t('common.loading')}/>:rows.filter(r=>r.name?.toLowerCase().includes(search.toLowerCase())).map((row,i)=><Card key={`${row.id}-${row.source}-${row.season}-${i}`}><Text style={{color:theme.colors.textPrimary,fontWeight:'700',fontSize:15}}>{row.name}</Text><Text style={{color:theme.colors.textMuted,fontSize:11,marginTop:5}}>{row.source} · {row.season}</Text><Text style={{color:row.status==='available'?theme.colors.accent:theme.colors.warning,fontSize:12,marginTop:12}}>{t(`coverageState.${row.status||'unchecked'}`)}</Text><View style={{flexDirection:'row',gap:16,marginTop:12}}><Text style={{color:theme.colors.textSecondary,fontSize:11}}>{row.fixture_count||0} {t('makeover.fixtures')}</Text><Text style={{color:theme.colors.textSecondary,fontSize:11}}>{row.confirmed_count||0} {t('makeover.confirmed')}</Text></View></Card>)}<SecondaryButton label={t('makeover.syncNow')} onPress={()=>{void load();}}/></View></SafeScrollView></ScreenContainer>;
 }
-
-const styles = StyleSheet.create({
-  title: { fontSize: 20, fontWeight: '800', paddingHorizontal: 16, paddingTop: 8 },
-  card: { marginHorizontal: 16, marginBottom: 10 },
-  row: { flexDirection: 'row', marginTop: 6 },
-});

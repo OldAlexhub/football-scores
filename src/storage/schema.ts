@@ -4,7 +4,7 @@
  * shipped — add a new one instead, so devices upgrading from any prior
  * version replay the same deterministic steps.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const MIGRATIONS: string[][] = [
   // Migration 1 — initial schema
@@ -92,5 +92,12 @@ export const MIGRATIONS: string[][] = [
       club_team_id TEXT,
       updated_at TEXT NOT NULL
     );`,
+  ],
+  // Migration 3 ? preserve existing records while adding server identity and reminder intent.
+  [
+    `CREATE TABLE IF NOT EXISTS telemetry_outbox (id TEXT PRIMARY KEY, name TEXT NOT NULL, occurred_at TEXT NOT NULL, properties TEXT NOT NULL);`,
+    `CREATE TABLE IF NOT EXISTS entity_aliases (kind TEXT NOT NULL, legacy_id TEXT NOT NULL, canonical_id TEXT NOT NULL, PRIMARY KEY(kind,legacy_id));`,
+    `CREATE TABLE IF NOT EXISTS reminder_rules (match_id TEXT PRIMARY KEY, origin TEXT NOT NULL DEFAULT 'manual', disabled INTEGER NOT NULL DEFAULT 0);`,
+    `INSERT OR IGNORE INTO reminder_rules(match_id,origin) SELECT match_id,'manual' FROM reminders;`,
   ],
 ];

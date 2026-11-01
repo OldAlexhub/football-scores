@@ -8,8 +8,10 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   onboardingCompleted: false,
   language: 'en',
   theme: 'system',
+  dataDisclosureVersion: 0,
+  favoriteTeamReminders: false,
   clock: '24h',
-  defaultReminderOffsetMinutes: 60,
+  defaultReminderOffsetMinutes: 15,
   defaultSpoilerShieldEnabled: false,
   defaultOpeningTab: 'home',
   showCompletedMatches: true,
@@ -19,7 +21,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
 export function getPreferences(): UserPreferences {
   const stored = getJson(preferencesStorage, KEY, DEFAULT_PREFERENCES);
   // Coerce a legacy opening-tab value from an earlier build.
-  return { ...stored, defaultOpeningTab: normalizeDefaultTab(stored.defaultOpeningTab) };
+  return { ...DEFAULT_PREFERENCES, ...stored, defaultOpeningTab: normalizeDefaultTab(stored.defaultOpeningTab) };
 }
 
 export function savePreferences(preferences: UserPreferences): void {

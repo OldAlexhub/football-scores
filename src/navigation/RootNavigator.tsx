@@ -2,6 +2,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import { OnboardingScreen } from '../screens/onboarding/OnboardingScreen';
 import { usePreferences } from '../state/PreferencesContext';
+import { DataDisclosureScreen } from '../screens/onboarding/DataDisclosureScreen';
 import { TabNavigator } from './TabNavigator';
 import type { RootStackParamList } from './types';
 
@@ -12,7 +13,7 @@ export function RootNavigator() {
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {preferences.onboardingCompleted ? (
+      {preferences.dataDisclosureVersion !== 1 ? <Stack.Screen name="DataDisclosure" component={DataDisclosureScreen} /> : preferences.onboardingCompleted ? (
         <Stack.Screen name="MainTabs">
           {() => <TabNavigator defaultTab={preferences.defaultOpeningTab} />}
         </Stack.Screen>

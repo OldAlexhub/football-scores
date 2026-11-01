@@ -1,3 +1,4 @@
+import { trackAd } from '../services/telemetry';
 import React, { useEffect, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, View } from 'react-native';
 import { BannerAd, BannerAdSize, useForeground } from 'react-native-google-mobile-ads';
@@ -53,6 +54,8 @@ export function SafeAdContainer() {
   const shouldRender = adsReady && !suppressed && !keyboardVisible && foreground && bannerState !== 'failed';
   const shouldRequest = adsReady && !suppressed && !keyboardVisible && foreground;
 
+  useEffect(() => { if(shouldRender) trackAd('ad_request','navigation_banner','banner'); }, [shouldRender]);
+
   if (!shouldRequest) {
     return null;
   }
@@ -61,7 +64,7 @@ export function SafeAdContainer() {
     <View
       style={[
         styles.container,
-        { borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface, paddingBottom: 0 },
+        { borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface, paddingBottom: 10 },
       ]}
     >
       <View style={[styles.separator, { backgroundColor: theme.colors.border }]} pointerEvents="none" />
@@ -71,7 +74,10 @@ export function SafeAdContainer() {
             unitId={BANNER_AD_UNIT_ID}
             size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
             requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+            onAdImpression={() => trackAd('ad_impression','navigation_banner','banner')}
+            onPaid={value => trackAd('ad_paid','navigation_banner','banner',value)}
             onAdLoaded={() => {
+              trackAd('ad_loaded','navigation_banner','banner');
               retryAttempt.current = 0;
               loadedAt.current = Date.now();
               setBannerState('loaded');
@@ -79,6 +85,7 @@ export function SafeAdContainer() {
               updateAdFrequencyState({ ...freq, bannerLastImpressionAt: new Date().toISOString() });
             }}
             onAdFailedToLoad={() => {
+              trackAd('ad_failed','navigation_banner','banner');
               setBannerState('failed');
               const backoffList = FREQUENCY_CAPS.bannerRetryBackoffSeconds;
               const delaySec = backoffList[Math.min(retryAttempt.current, backoffList.length - 1)];

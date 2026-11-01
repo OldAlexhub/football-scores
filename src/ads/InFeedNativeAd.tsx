@@ -1,9 +1,11 @@
+import { trackAd } from '../services/telemetry';
 import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import {
   BannerAd,
   BannerAdSize,
   NativeAd,
+  NativeAdEventType,
   NativeAdView,
   NativeAsset,
   NativeAssetType,
@@ -20,12 +22,14 @@ import { useTheme } from '../theme/ThemeProvider';
 import { AppIcon } from '../components/AppIcon';
 import { getAdsInitState, subscribeAdsInitState } from './AdService';
 
-export function InFeedNativeAd({ compact = false }: { compact?: boolean }) {
+export function InFeedNativeAd({ compact = false, placement = 'content_feed' }: { compact?: boolean; placement?: string }) {
   const theme = useTheme();
   const [nativeAd, setNativeAd] = useState<NativeAd | null>(null);
   const [adsReady, setAdsReady] = useState(getAdsInitState() === 'ready');
   const [bannerFailed, setBannerFailed] = useState(false);
   const [bannerAttempt, setBannerAttempt] = useState(0);
+
+  useEffect(() => { if(adsReady && !NATIVE_ADS_ENABLED && !bannerFailed) trackAd('ad_request',placement,'banner'); }, [adsReady,bannerAttempt,bannerFailed,placement]);
 
   useEffect(() => subscribeAdsInitState(state => setAdsReady(state === 'ready')), []);
 
@@ -46,6 +50,7 @@ export function InFeedNativeAd({ compact = false }: { compact?: boolean }) {
     let loadedAd: NativeAd | null = null;
     const load = async () => {
       try {
+        trackAd('ad_request',placement,'native');
         const ad = await NativeAd.createForAdRequest(NATIVE_AD_UNIT_ID, {
           aspectRatio: NativeMediaAspectRatio.LANDSCAPE,
           startVideoMuted: true,
@@ -54,9 +59,13 @@ export function InFeedNativeAd({ compact = false }: { compact?: boolean }) {
           ad.destroy();
           return;
         }
+        trackAd('ad_loaded',placement,'native');
+        ad.addAdEventListener(NativeAdEventType.IMPRESSION, () => trackAd('ad_impression',placement,'native'));
+        ad.addAdEventListener(NativeAdEventType.PAID, value => trackAd('ad_paid',placement,'native',{ ...value, currency: value.currencyCode }));
         loadedAd = ad;
         setNativeAd(ad);
       } catch {
+        trackAd('ad_failed',placement,'native');
         // Empty ad slots collapse without disturbing content.
       }
     };
@@ -86,7 +95,10 @@ export function InFeedNativeAd({ compact = false }: { compact?: boolean }) {
           unitId={BANNER_AD_UNIT_ID}
           size={BannerAdSize.INLINE_ADAPTIVE_BANNER}
           requestOptions={{ requestNonPersonalizedAdsOnly: false }}
-          onAdFailedToLoad={() => setBannerFailed(true)}
+          onAdLoaded={() => trackAd('ad_loaded',placement,'banner')}
+          onAdImpression={() => trackAd('ad_impression',placement,'banner')}
+          onPaid={value => trackAd('ad_paid',placement,'banner',value)}
+          onAdFailedToLoad={() => { trackAd('ad_failed',placement,'banner'); setBannerFailed(true); }}
         />
       </View>
     );

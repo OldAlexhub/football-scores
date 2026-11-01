@@ -1,3 +1,4 @@
+import { isNotificationEntry } from './notificationEntry';
 import type { AdPlacementName } from '../types/domain';
 import { canShowInterstitial } from './AdFrequencyController';
 import { isInterstitialLoaded } from './AdPreloadController';
@@ -12,8 +13,9 @@ import { isKeyboardVisible } from './keyboardVisibility';
  * uses — editors, consent forms, permission prompts, keyboard open, …).
  */
 export function isInterstitialEligibleNow(placement: AdPlacementName): boolean {
+  if (isNotificationEntry() || placement === 'reminder_batch_done') return false;
   if (getAdsInitState() !== 'ready') return false;
-  if (bannerEligibilityController.isHidden()) return false;
+  if (bannerEligibilityController.isSensitive()) return false;
   if (isKeyboardVisible()) return false;
   if (!isInterstitialLoaded()) return false;
   return canShowInterstitial(placement);

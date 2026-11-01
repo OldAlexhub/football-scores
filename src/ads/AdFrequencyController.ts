@@ -23,7 +23,7 @@ export function canShowInterstitial(placement: AdPlacementName): boolean {
     return false;
   }
 
-  if (freq.eligibleActionCount < FREQUENCY_CAPS.minEligibleActionsBeforeFirstInterstitial) {
+  if (!freq.lastInterstitialAt && freq.eligibleActionCount < FREQUENCY_CAPS.minEligibleActionsBeforeFirstInterstitial) {
     return false;
   }
 
@@ -37,7 +37,7 @@ export function canShowInterstitial(placement: AdPlacementName): boolean {
     if (freq.eligibleActionCount < FREQUENCY_CAPS.minEligibleActionsBetweenInterstitials) {
       return false;
     }
-    if (freq.lastEligibleActionType === placement) {
+    if (freq.lastInterstitialPlacement === placement) {
       return false;
     }
   }
@@ -64,11 +64,12 @@ export function recordEligibleAction(placement: AdPlacementName): void {
 }
 
 /** Called only when an interstitial actually displayed — resets the between-ads counter. */
-export function recordInterstitialShown(): void {
+export function recordInterstitialShown(placement:AdPlacementName): void {
   const freq = getAdFrequencyState();
   const dayReset = rollingDayHasElapsed(freq.rollingDayStartedAt);
   updateAdFrequencyState({
     lastInterstitialAt: new Date().toISOString(),
+    lastInterstitialPlacement: placement,
     activeSessionInterstitialCount: freq.activeSessionInterstitialCount + 1,
     rollingDayInterstitialCount: dayReset ? 1 : freq.rollingDayInterstitialCount + 1,
     rollingDayStartedAt: dayReset ? new Date().toISOString() : freq.rollingDayStartedAt ?? new Date().toISOString(),

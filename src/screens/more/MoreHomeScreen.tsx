@@ -51,6 +51,9 @@ export function MoreHomeScreen() {
         </Group>
 
         <Group title={t('more.explore')}>
+          <MenuRow icon="target" label={t('makeover.privatePredictions')} onPress={() => nav('PredictHome')} />
+          <MenuRow icon="calendar" label={t('makeover.planner')} onPress={() => nav('MatchdayTools')} />
+          <MenuRow icon="bookmark" label={t('dataManagement.title')} onPress={() => nav('DataManagement')} />
           <MenuRow icon="chart" label={t('insights.title')} onPress={() => nav('InsightsHome')} last />
         </Group>
 
@@ -70,6 +73,7 @@ export function MoreHomeScreen() {
 
         <Group title={t('more.advertisingPrivacy')}>
           <MenuRow icon="settings" label={t('ads.privacyChoices')} onPress={() => nav('AdvertisingPrivacyChoices')} />
+          <MenuRow icon="shield" label={t('makeover.myData')} onPress={() => nav('MyData')} />
           <MenuRow icon="shield" label={t('about.privacyPolicy')} onPress={() => nav('PrivacyPolicy')} last />
         </Group>
 

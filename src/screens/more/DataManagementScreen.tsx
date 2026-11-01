@@ -13,12 +13,20 @@ import { clearWatchPlanItems } from '../../storage/repositories/watchPlanRepo';
 import { clearAllCache } from '../../storage/repositories/providerCacheRepo';
 import { clearFavorites } from '../../storage/repositories/favoritesRepo';
 import { clearReminders } from '../../storage/repositories/remindersRepo';
-import { resetPreferences } from '../../storage/preferencesRepo';
+import { DEFAULT_PREFERENCES } from '../../storage/preferencesRepo';
+import {usePreferences} from '../../state/PreferencesContext';
+import {useReminders} from '../../state/RemindersContext';
+import {useFavorites} from '../../state/FavoritesContext';
+import {runExecute} from '../../storage/db';
+import notifee from '@notifee/react-native';
 
 export function DataManagementScreen() {
   const navigation = useNavigation<any>();
   const { t } = useTranslation();
   const theme = useTheme();
+  const {preferences,update}=usePreferences();
+  const {refresh:refreshReminders}=useReminders();
+  const {refresh:refreshFavorites}=useFavorites();
   const { refresh: refreshPredictions } = usePredictions();
   const { refresh: refreshWatchPlan } = useWatchPlan();
 
@@ -67,12 +75,17 @@ export function DataManagementScreen() {
           <DangerButton
             label={t('dataManagement.resetAll')}
             onPress={() => confirm(t('dataManagement.resetAllConfirm'), async () => {
+              await update({notificationsEnabled:false,favoriteTeamReminders:false});
+              await notifee.cancelAllNotifications();
+              await runExecute('DELETE FROM reminder_rules');
               await clearPredictions();
               await clearWatchPlanItems();
               await clearReminders();
               await clearFavorites();
               await clearAllCache();
-              resetPreferences();
+              await update({...DEFAULT_PREFERENCES,language:preferences.language,onboardingCompleted:preferences.onboardingCompleted,dataDisclosureVersion:preferences.dataDisclosureVersion,notificationsEnabled:false,favoriteTeamReminders:false});
+              await refreshReminders();
+              await refreshFavorites();
               await refreshPredictions();
               await refreshWatchPlan();
             })}

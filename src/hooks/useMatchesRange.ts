@@ -31,6 +31,7 @@ export function useMatchesRange(dateFromUtc: string, dateToUtc: string, competit
   const [isStale, setIsStale] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastRefreshedAtUtc, setLastRefreshedAtUtc] = useState<string | null>(null);
+  const [importPending, setImportPending] = useState(false);
   const mounted = useRef(true);
   const requestSequence = useRef(0);
 
@@ -54,6 +55,7 @@ export function useMatchesRange(dateFromUtc: string, dateToUtc: string, competit
       });
       if (!mounted.current || requestId !== requestSequence.current) return;
       setMatches(result.data);
+      setImportPending(!!result.importPending);
       setProviderId(result.providerId);
       setIsFromCache(result.isFromCache);
       setIsStale(result.isStale);
@@ -77,6 +79,8 @@ export function useMatchesRange(dateFromUtc: string, dateToUtc: string, competit
 
   useEffect(() => {
     mounted.current = true;
+    setMatches([]);
+    setErrorMessage(null);
     void load(false);
     return () => {
       mounted.current = false;
@@ -85,10 +89,10 @@ export function useMatchesRange(dateFromUtc: string, dateToUtc: string, competit
 
   useEffect(() => {
     const hasLiveMatch = matches.some(match => match.status === 'live' || match.status === 'half_time');
-    if (!isFocused || !hasLiveMatch) return;
+    if (!isFocused || (!hasLiveMatch && !importPending)) return;
     const timer = setInterval(() => { void load(false, true); }, 30_000);
     return () => clearInterval(timer);
-  }, [isFocused, load, matches]);
+  }, [isFocused, load, matches, importPending]);
 
   return {
     matches, loading, refreshing, providerId, isFromCache, isStale, errorMessage,

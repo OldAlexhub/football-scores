@@ -9,16 +9,21 @@ type Listener = (hidden: boolean) => void;
  */
 class BannerEligibilityController {
   private suppressionCount = 0;
+  private sensitiveCount = 0;
   private listeners = new Set<Listener>();
 
-  suppress(): () => void {
+  suppress(sensitive = true): () => void {
+    if(sensitive)this.sensitiveCount++;
     this.suppressionCount += 1;
     this.notify();
     return () => {
+      if(sensitive)this.sensitiveCount=Math.max(0,this.sensitiveCount-1);
       this.suppressionCount = Math.max(0, this.suppressionCount - 1);
       this.notify();
     };
   }
+
+  isSensitive(): boolean { return this.sensitiveCount>0; }
 
   isHidden(): boolean {
     return this.suppressionCount > 0;

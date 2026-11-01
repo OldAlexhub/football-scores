@@ -1,61 +1,37 @@
-# Privacy Policy — Football Scores Today
+﻿# Football Scores Today - Privacy Policy
 
-**Developer:** Old Alex Hub
-**Effective date:** 07/17/2026
-**Contact:** info@oldalexhub.com
+Effective: 1 November 2026. Controller/developer: Old Alex Hub. Contact: info@oldalexhub.com.
 
-Football Scores Today ("the app") is free to download and use, and is supported by advertising. This policy explains what happens on your device and what our third-party advertising service can access. It applies to the international app (Football Scores Today), its United States listing (Soccer Games Today), and its Arabic listing (مباريات ونتائج كرة القدم) — all three are the same application.
+Football Scores is free and supported by advertising. No mobile account is required. The app connects to our service at https://soccer.server.oldalexhub.com.
 
-## No accounts, no backend
+## Required usage and diagnostic sharing
 
-The app has no user accounts, no registration, and no login. There is no Old Alex Hub backend server. Your favorites, predictions, matchday plans, and reminders are stored **only in local storage on your device**. Nothing you create in the app is uploaded to Old Alex Hub.
+Using the app requires first-party usage and diagnostic sharing. There is no disable switch for this collection. Before first use, the app explains this requirement and links to this policy. We collect a randomly generated installation identifier, app version, session and screen events, viewed team/match identifiers, reminder scheduling/cancellation/failure and observed notification interactions, cache performance, ad requests/loads/impressions/failures, ad paid-event values when supplied by the SDK, and sanitized error codes. We use these records to understand usage, diagnose failures, improve schedules and reminders, and measure advertising performance.
 
-## Football data requests
+We do not upload your saved favorites list, personal predictions, notes, matchday plans, contact list, or precise location. Interactions with a viewed team or match can still be recorded. Credentials are stored encrypted using Android Keystore. Requests use HTTPS in production. Your IP address is processed transiently for delivery and rate limiting; it is not stored in application telemetry. Hosting/reverse-proxy access logs are configured separately by the operator.
 
-To show fixtures, results, and standings, the app makes network requests to third-party football data providers:
+## On-device records and backups
 
-- **OpenFootball** — free, public-domain fixture and result datasets, no key required.
-- **football-data.org** — the primary configurable current-data source (API v4).
-- **API-Football** — an optional enrichment source.
+Favorites, predictions, notes, plans, reminder settings, offline football caches and preferences stay on your device. More > Data Management exports or restores your own backup files. These files do not contain server access credentials or the recovery code. Use your chosen file/share destination carefully. Android automatic application backup is disabled. Uninstalling removes local app data but does not itself submit a server deletion request.
 
-These requests include only what's needed to fetch matches (such as a date range or competition id) — never your predictions, favorites, or device identifiers.
+## Advertising and permissions
 
-## Football news
+Google AdMob and its partners process advertising identifiers, approximate location, interactions and diagnostics according to Google's policies and the advertising choices shown through Google UMP where applicable. Review advertising choices in More > Advertising & Privacy. First-party required usage sharing is separate from advertising consent. Denying Android notification permission does not disable required analytics. No FCM is used; reminders are scheduled locally for confirmed kickoff times and may be delayed by Android's battery/background restrictions. Ad revenue values sent to our server are estimates supplied by the SDK, not finalized AdMob reports.
 
-The News section fetches public RSS feeds directly from football publishers (currently BBC Sport, The Guardian, and Sky Sports) to show headlines, short snippets, and a link to the full article on the publisher's own website. The app does not host or reproduce full articles, does not send any personal data with these requests, and opens the original article in your device's browser when you tap a headline.
+Google's policy: https://policies.google.com/privacy
 
-## Advertising (Google AdMob)
+## Access, deletion and recovery
 
-The app shows banner and interstitial advertisements through **Google AdMob**. AdMob and its advertising partners may collect and use device identifiers (such as the Android advertising ID), approximate location, and app interaction data to serve and measure ads, subject to the consent choices you make through the **Google User Messaging Platform (UMP)** consent form shown where required (for example, in the EEA and UK).
+Use More > My data & privacy to export your identifiable server records or request deletion. Save your private recovery code before uninstalling; it authorizes requests at https://soccer.server.oldalexhub.com/data-request. Never publish the code. For assistance, contact info@oldalexhub.com; verification is required before releasing or deleting records. We cannot identify an anonymous installation from an email address alone.
 
-You can review or change your advertising consent at any time from **More → Advertising & Privacy → Manage advertising choices**.
+Successful deletion immediately removes active identifiable installation and event records and revokes access credentials (within the 24-hour service target). Pending uploads are cleared on-device. Saved on-device content is separate and can be removed in Data Management. Continued use requires the disclosure again and creates a new installation identity. For deletion submitted with a recovery code elsewhere, the app clears pending uploads when it next learns that credentials were revoked; offline devices cannot receive immediate revocation.
 
-## Device and diagnostic information
+Identifiable events are retained for 90 days. Inactive installation identities expire after 90 days without activity. Aggregate counts, without installation identifiers or saved datasets, are retained for 13 months. Request history expires after 90 days. Protected backups expire within 30 days. A separate deletion suppression ledger prevents deleted identities from resurfacing when a backup is restored; it retains only identifiers/credential hashes and deletion timestamps, not event history. This ledger is restricted to the service operator and retained to enforce deletion. Google handles AdMob records separately.
 
-Standard technical information (device type, OS version, crash and performance diagnostics) may be processed by Google Play services and AdMob as part of normal app operation and advertising delivery.
+## Football data
 
-## Local storage
+Our backend imports openly licensed football records from OpenFootball (CC0/public domain) and OpenLigaDB (ODbL 1.0), and permitted administrator imports with recorded provenance. API records include attribution and source URLs. The app uses original team monograms. Source availability varies by competition and season. We do not invent kickoff times or statistics. We are not affiliated with FIFA, UEFA, leagues or clubs. Predictions are personal records; there is no wagering.
 
-Favorites, predictions, matchday plans, reminders, and preferences are stored in a local database and a local preference store on your device only. You can export this data (CSV, JSON, or a complete backup file) or delete it at any time from **More → Data Management**.
+## Updates and contact
 
-## Backup and restore
-
-You may export a complete backup file and later import it back into the app, including on a new device. Backup files are created and read only by you through the app's share/file system — Old Alex Hub does not receive a copy.
-
-## Data deletion
-
-You can clear individual data categories (predictions, matchday plans, cached football data) or reset all app data from **More → Data Management**. Uninstalling the app removes all locally stored data, since nothing is stored on a Football Scores Today server.
-
-## Children's privacy
-
-The app is not directed at children and does not knowingly collect personal information from children. Advertising requests are configured to avoid child-directed treatment.
-
-## Accuracy and non-affiliation
-
-Football Scores Today is **not affiliated** with FIFA, UEFA, any league, club, broadcaster, or national football association. Match data depends on third-party providers and may be delayed, incomplete, or occasionally incorrect.
-
-**The app is a companion and planning tool. It is not a betting service** and does not offer betting odds, wagers, or guaranteed outcomes. Predictions made in the app are private, for entertainment only, and carry no monetary value.
-
-## Changes to this policy
-
-If this policy changes, the updated version will be included in the app's next update and reflected in the in-app Privacy Policy screen (More → Advertising & Privacy → Privacy Policy).
+This policy is available in-app and at https://soccer.server.oldalexhub.com/privacy. Material collection changes require an updated disclosure. Questions or rights requests: info@oldalexhub.com.

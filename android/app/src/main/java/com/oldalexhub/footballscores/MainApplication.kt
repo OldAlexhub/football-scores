@@ -16,6 +16,7 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this).packages.apply {
           add(WidgetBridgePackage())
+          add(com.oldalexhub.footballscores.runtime.FootballRuntimePackage())
         },
     )
   }

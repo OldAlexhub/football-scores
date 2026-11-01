@@ -10,15 +10,17 @@ import { AppIcon, type AppIconName } from './AppIcon';
 const TAB_ICONS: Record<string, AppIconName> = {
   HomeTab: 'home',
   MatchesTab: 'ball',
-  PlayersTab: 'users',
+  PlayersTab: 'star',
   MoreTab: 'menu',
+  NewsTab: 'news',
 };
 
 const TAB_LABEL_KEYS: Record<string, string> = {
   HomeTab: 'tabs.home',
   MatchesTab: 'tabs.matches',
-  PlayersTab: 'tabs.players',
+  PlayersTab: 'makeover.following',
   MoreTab: 'tabs.more',
+  NewsTab: 'makeover.newsTab',
 };
 
 export function SafeBottomBar({ state, descriptors, navigation }: BottomTabBarProps) {

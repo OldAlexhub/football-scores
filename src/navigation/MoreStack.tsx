@@ -1,6 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { MyDataScreen } from '../screens/more/MyDataScreen';
 import { MoreHomeScreen } from '../screens/more/MoreHomeScreen';
 import { FavoriteCompetitionsScreen } from '../screens/more/FavoriteCompetitionsScreen';
 import { FavoriteTeamsScreen } from '../screens/more/FavoriteTeamsScreen';
@@ -25,12 +26,21 @@ import { MatchDetailsScreen } from '../screens/shared/MatchDetailsScreen';
 import { PlayerDetailsScreen } from '../screens/players/PlayerDetailsScreen';
 import type { MoreStackParamList } from './types';
 
+import { MatchdayToolsStack } from './MatchdayToolsStack';
+import { PredictHomeScreen } from '../screens/predict/PredictHomeScreen';
+import { PredictionEditorScreen } from '../screens/predict/PredictionEditorScreen';
+import { PredictionDetailsScreen } from '../screens/predict/PredictionDetailsScreen';
 const Stack = createNativeStackNavigator<MoreStackParamList>();
 
 export function MoreStack() {
   const { t } = useTranslation();
   return (
     <Stack.Navigator screenOptions={{ headerShown: true }}>
+      <Stack.Screen name="MatchdayTools" component={MatchdayToolsStack} options={{headerShown:false}} />
+      <Stack.Screen name="PredictHome" component={PredictHomeScreen} options={{title:t('makeover.privatePredictions')}} />
+      <Stack.Screen name="PredictionEditor" component={PredictionEditorScreen} options={{title:t('makeover.privatePredictions')}} />
+      <Stack.Screen name="PredictionDetails" component={PredictionDetailsScreen} options={{title:t('makeover.privatePredictions')}} />
+      <Stack.Screen name="MyData" component={MyDataScreen} options={{ title: t('makeover.myData') }} />
       <Stack.Screen name="MoreHome" component={MoreHomeScreen} options={{ headerShown: false }} />
       <Stack.Screen name="FavoriteCompetitions" component={FavoriteCompetitionsScreen} options={{ title: t('more.favoriteCompetitions') }} />
       <Stack.Screen name="FavoriteTeams" component={FavoriteTeamsScreen} options={{ title: t('more.favoriteTeams') }} />

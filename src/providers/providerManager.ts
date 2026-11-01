@@ -1,570 +1,64 @@
-import {
-  COMPETITION_BY_KEY,
-  resolveCatalogCompetition,
-  type CompetitionCatalogItem,
-} from '../config/competitionCatalog';
-import { readCache, writeCache } from '../storage/repositories/providerCacheRepo';
+import {toLocalDateKey} from '../utils/dates';
 import type { Competition, Match, MatchAnalysis, MatchPrediction, ProviderId, StandingRow, Team } from '../types/domain';
-import { apiFootballProvider } from './apiFootballProvider';
-import { cacheKeys, CACHE_TTL_MS, HARD_MAX_RANGE_DAYS, MAX_RANGE_DAYS } from './cacheKeys';
-import { cachedProvider } from './cachedProvider';
-import { withTimeout } from './concurrency';
-import { footballDataOrgProvider } from './footballDataOrgProvider';
-import { mergeMatches } from './matchMerge';
-import { sameFixture } from './nameMatch';
-import { openFootballProvider } from './openFootballProvider';
-import { openLigaDbProvider } from './openLigaDbProvider';
-import { canFitWithinSoftCap } from './rateBudget';
-import { theSportsDbProvider } from './theSportsDbProvider';
-import { espnProvider } from './espnProvider';
-import type { FootballDataProvider, FormResult, HeadToHeadResult, MatchesQuery } from './types';
-import { ProviderError } from './types';
+import { readCache, writeCache } from '../storage/repositories/providerCacheRepo';
+import { serverRequest, type ApiEnvelope, type CoverageRow } from '../services/serverApi';
+import type { MatchesQuery, HeadToHeadResult, FormResult } from './types';
+import { COMPETITION_BY_KEY } from '../config/competitionCatalog';
+import i18n from '../i18n';
+import { track } from '../services/telemetry';
 
-export const LIVE_PROVIDERS: FootballDataProvider[] = [
-  apiFootballProvider,
-  footballDataOrgProvider,
-  openFootballProvider,
-  openLigaDbProvider,
-  theSportsDbProvider,
-  espnProvider,
-];
-
-/** Providers merged (not fallen-back) for fixture lists — order is irrelevant here. */
-const MATCH_MERGE_PROVIDERS: FootballDataProvider[] = [
-  espnProvider,
-  openFootballProvider,
-  openLigaDbProvider,
-  theSportsDbProvider,
-  apiFootballProvider,
-  footballDataOrgProvider,
-];
-
-const PROVIDER_TIMEOUT_MS = 12_000;
-
-export interface ProviderHealth {
-  providerId: ProviderId;
-  lastSuccessAtUtc: string | null;
-  lastFailureAtUtc: string | null;
-  lastErrorMessage: string | null;
-}
-
-const health: Record<ProviderId, ProviderHealth> = {
-  'football-data-org': { providerId: 'football-data-org', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
-  'api-football': { providerId: 'api-football', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
-  openfootball: { providerId: 'openfootball', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
-  thesportsdb: { providerId: 'thesportsdb', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
-  espn: { providerId: 'espn', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
-  openligadb: { providerId: 'openligadb', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
-  cached: { providerId: 'cached', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
-  merged: { providerId: 'merged', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null },
-};
-
-export function getProviderHealth(): ProviderHealth[] {
-  return Object.values(health);
-}
-
-function recordSuccess(providerId: ProviderId): void {
-  health[providerId].lastSuccessAtUtc = new Date().toISOString();
-}
-
-function recordFailure(providerId: ProviderId, message: string): void {
-  health[providerId].lastFailureAtUtc = new Date().toISOString();
-  health[providerId].lastErrorMessage = message;
-}
-
-export interface SourcedResult<T> {
-  data: T;
-  providerId: ProviderId;
-  isFromCache: boolean;
-  isStale: boolean;
-  errorMessage: string | null;
-}
-
-const MANUAL_REFRESH_COOLDOWN_MS = 60 * 1000;
-let lastManualRefreshAt = 0;
-
-export function canManualRefresh(): boolean {
-  return Date.now() - lastManualRefreshAt >= MANUAL_REFRESH_COOLDOWN_MS;
-}
-
-export function markManualRefresh(): void {
-  lastManualRefreshAt = Date.now();
-}
-
-/**
- * Tries each configured live provider in priority order for a single
- * capability. The first provider to return a non-empty result wins — this
- * app deliberately never merges two providers' records for one query, since
- * safe reconciliation across differing IDs and field coverage isn't
- * guaranteed. On total failure, falls back to the last cached payload.
- */
-async function withFallback<T>(
-  capability: keyof FootballDataProvider['capabilities'],
-  attempt: (provider: FootballDataProvider) => Promise<T>,
-  isEmpty: (result: T) => boolean,
-  cacheKey: string,
-  ttlMs: number | ((result: T) => number),
-  bypassFreshCache = false,
-): Promise<SourcedResult<T>> {
-  let lastError: string | null = null;
-
-  if (!bypassFreshCache) {
-    const cached = await readCache<T>(cacheKey);
-    if (cached && !cached.isStale && !isEmpty(cached.payload)) {
-      return {
-        data: cached.payload,
-        providerId: cached.providerId,
-        isFromCache: true,
-        isStale: false,
-        errorMessage: null,
-      };
-    }
-  }
-
-  for (const provider of LIVE_PROVIDERS) {
-    if (!provider.capabilities[capability] || !provider.isConfigured()) {
-      continue;
-    }
-    try {
-      const result = await attempt(provider);
-      if (isEmpty(result)) {
-        continue;
-      }
-      recordSuccess(provider.id);
-      await writeCache(cacheKey, provider.id, result, typeof ttlMs === 'function' ? ttlMs(result) : ttlMs);
-      return { data: result, providerId: provider.id, isFromCache: false, isStale: false, errorMessage: null };
-    } catch (error) {
-      const message = error instanceof ProviderError ? error.message : 'Unknown provider error';
-      recordFailure(provider.id, message);
-      lastError = message;
-    }
-  }
-
-  const fallback = await attempt(cachedProvider).catch(() => null);
-  if (fallback && !isEmpty(fallback)) {
-    return { data: fallback, providerId: 'cached', isFromCache: true, isStale: true, errorMessage: lastError };
-  }
-
-  return {
-    data: (Array.isArray(fallback) ? [] : fallback) as T,
-    providerId: 'cached',
-    isFromCache: true,
-    isStale: true,
-    errorMessage: lastError,
-  };
-}
-
-function resolveCatalogForMatch(match: Match): CompetitionCatalogItem | null {
-  return (
-    resolveCatalogCompetition(match.catalogKey) ??
-    resolveCatalogCompetition(match.competitionId) ??
-    resolveCatalogCompetition(match.competitionName)
-  );
-}
-
-/**
- * Translate the merge pipeline's catalog-key scope into each adapter's own
- * identifier dialect. An empty `keys` list means "all competitions" — every
- * adapter has its own sensible default for that case.
- */
-function subQueryForProvider(provider: FootballDataProvider, keys: string[], base: MatchesQuery): MatchesQuery {
-  const pick = <T>(get: (item: CompetitionCatalogItem) => T | null | undefined): T[] =>
-    keys.map(key => COMPETITION_BY_KEY.get(key)).flatMap(item => {
-      const value = item ? get(item) : null;
-      return value == null ? [] : [value];
-    });
-
-  if (provider.id === 'espn' || provider.id === 'openligadb') {
-    return { ...base, competitionProviderIds: keys.length ? keys : undefined };
-  }
-  if (provider.id === 'thesportsdb') {
-    // No scope → let the adapter run its worldwide "all soccer today" sweep.
-    if (!keys.length) return { ...base, competitionProviderIds: undefined };
-    return { ...base, competitionProviderIds: pick(item => item.canonicalId) };
-  }
-  if (provider.id === 'openfootball') {
-    const codes = keys.length
-      ? pick(item => item.openFootballCode)
-      : [...COMPETITION_BY_KEY.values()]
-        .filter(item => !!item.openFootballCode)
-        .map(item => item.openFootballCode as string);
-    return { ...base, competitionProviderIds: codes };
-  }
-  // api-football / football-data.org: native numeric ids, only reached when configured.
-  const apiIds = pick(item => item.apiFootballId).map(String);
-  return { ...base, competitionProviderIds: apiIds.length ? apiIds : undefined };
-}
-
-function clampRange(query: MatchesQuery): MatchesQuery {
-  const from = new Date(query.dateFromUtc);
-  const to = new Date(query.dateToUtc);
-  const spanDays = (to.getTime() - from.getTime()) / 86_400_000;
-  if (spanDays <= HARD_MAX_RANGE_DAYS) return query;
-  return { ...query, dateToUtc: new Date(from.getTime() + HARD_MAX_RANGE_DAYS * 86_400_000).toISOString() };
-}
-
-export async function fetchMatches(rawQuery: MatchesQuery): Promise<SourcedResult<Match[]>> {
-  const query = clampRange(rawQuery);
-  const cacheKey = cacheKeys.matches(query.dateFromUtc, query.dateToUtc, query.competitionProviderIds);
-  const prevCache = await readCache<Match[]>(cacheKey);
-
-  if (query.forceRefresh !== true && prevCache && !prevCache.isStale && prevCache.payload.length > 0) {
-    return {
-      data: prevCache.payload,
-      providerId: prevCache.providerId,
-      isFromCache: true,
-      isStale: false,
-      errorMessage: null,
-    };
-  }
-
-  const keys = (query.competitionProviderIds ?? []).filter(Boolean);
-  const fromDay = new Date(query.dateFromUtc.slice(0, 10));
-  const toDay = new Date(query.dateToUtc.slice(0, 10));
-  const sportsDbDates = Math.min(MAX_RANGE_DAYS, Math.max(0,
-    Math.floor((toDay.getTime() - fromDay.getTime()) / 86_400_000) + 1,
-  ));
-  const sportsDbCompetitions = keys.length
-    ? keys.filter(key => !!COMPETITION_BY_KEY.get(key)?.sportsDbLeagueId).length
-    : 1;
-  const active = MATCH_MERGE_PROVIDERS.filter(provider => {
-    if (!provider.capabilities.schedules || !provider.isConfigured()) return false;
-    if (provider.id === 'thesportsdb'
-      && !canFitWithinSoftCap('thesportsdb', sportsDbDates * sportsDbCompetitions)) return false;
-    return true;
-  });
-
-  const settled = await Promise.allSettled(
-    active.map(provider =>
-      withTimeout(provider.getMatches(subQueryForProvider(provider, keys, query)), PROVIDER_TIMEOUT_MS),
-    ),
-  );
-
-  const arrays: Match[][] = [];
-  const errors: string[] = [];
-  let fulfilled = 0;
-  settled.forEach((result, index) => {
-    const provider = active[index];
-    if (result.status === 'fulfilled') {
-      fulfilled += 1;
-      recordSuccess(provider.id);
-      arrays.push(result.value);
-    } else {
-      const reason = result.reason;
-      const message = reason instanceof ProviderError ? reason.message
-        : reason instanceof Error ? reason.message : 'Unknown provider error';
-      recordFailure(provider.id, message);
-      errors.push(`${provider.displayName}: ${message}`);
-    }
-  });
-
-  if (fulfilled === 0) {
-    return {
-      data: prevCache?.payload ?? [],
-      providerId: 'cached',
-      isFromCache: true,
-      isStale: true,
-      errorMessage: errors.join('; ') || 'All match sources are unavailable',
-    };
-  }
-
-  const merged = mergeMatches(arrays, {
-    previous: prevCache?.payload,
-    resolveCatalog: resolveCatalogForMatch,
-  });
-
-  const requestedDay = query.dateFromUtc.slice(0, 10);
-  const today = new Date().toISOString().slice(0, 10);
-  const multiDay = query.dateToUtc.slice(0, 10) !== requestedDay;
-  const ttl = merged.some(match => match.status === 'live' || match.status === 'half_time')
-    ? CACHE_TTL_MS.liveFixtures
-    : !multiDay && requestedDay === today
-      ? CACHE_TTL_MS.todayFixtures
-      : multiDay
-        ? CACHE_TTL_MS.rangeFixtures
-        : CACHE_TTL_MS.upcomingFixtures;
-
-  await writeCache(cacheKey, 'merged', merged, ttl).catch(() => undefined);
-
-  return {
-    data: merged,
-    providerId: 'merged',
-    isFromCache: false,
-    isStale: false,
-    errorMessage: errors.length ? errors.join('; ') : null,
-  };
-}
-
-export async function fetchCompetitions(): Promise<SourcedResult<Competition[]>> {
-  return withFallback(
-    'competitionMetadata',
-    provider => provider.getCompetitions(),
-    result => result.length === 0,
-    cacheKeys.competitions(),
-    CACHE_TTL_MS.competitionMetadata,
-  );
-}
-
-export async function fetchStandings(competitionProviderId: string, season?: string): Promise<SourcedResult<StandingRow[]>> {
-  return withFallback(
-    'standings',
-    provider => provider.getStandings(competitionProviderId, season),
-    result => result.length === 0,
-    cacheKeys.standings(competitionProviderId),
-    CACHE_TTL_MS.standings,
-  );
-}
-
-export async function fetchTeams(competitionProviderId: string): Promise<SourcedResult<Team[]>> {
-  return withFallback(
-    'teams',
-    provider => provider.getTeams(competitionProviderId),
-    result => result.length === 0,
-    cacheKeys.teams(competitionProviderId),
-    CACHE_TTL_MS.teamMetadata,
-  );
-}
-
-export async function fetchHeadToHead(homeTeamProviderId: string, awayTeamProviderId: string): Promise<SourcedResult<HeadToHeadResult>> {
-  return withFallback(
-    'headToHead',
-    provider => provider.getHeadToHead(homeTeamProviderId, awayTeamProviderId),
-    result => result.matches.length === 0,
-    cacheKeys.headToHead(homeTeamProviderId, awayTeamProviderId),
-    CACHE_TTL_MS.recentResults,
-  );
-}
-
-export async function fetchForm(teamProviderId: string): Promise<SourcedResult<FormResult>> {
-  return withFallback(
-    'form',
-    provider => provider.getForm(teamProviderId),
-    result => result.lastFive.length === 0,
-    cacheKeys.form(teamProviderId),
-    CACHE_TTL_MS.recentResults,
-  );
-}
-
-/**
- * A domain Match id is always `${providerId}:${providerMatchId}`. Since only
- * football-data.org and API-Football expose a single-match lookup, this
- * routes straight to the originating provider rather than trying every
- * provider in priority order.
- */
-export async function resolveMatchById(matchId: string): Promise<Match | null> {
-  const separatorIndex = matchId.indexOf(':');
-  if (separatorIndex === -1) return null;
-  const providerId = matchId.slice(0, separatorIndex) as ProviderId;
-  const providerMatchId = matchId.slice(separatorIndex + 1);
-
-  const provider = LIVE_PROVIDERS.find(p => p.id === providerId);
-  if (provider && provider.isConfigured()) {
-    try {
-      const match = await provider.getMatch(providerMatchId);
-      if (match) return match;
-    } catch {
-      // fall through to cache below
-    }
-  }
-  return null;
-}
-
-/**
- * A reminder / prediction saved before the merge pipeline may hold an id from
- * a provider that no longer wins that fixture's identity (e.g. an
- * `openfootball:` id when ESPN now leads). When a direct lookup fails, try to
- * re-link it against a freshly fetched window by fuzzy fixture identity.
- */
-export function reconcileMatchId(staleId: string, fresh: Match[]): Match | null {
-  const exact = fresh.find(match => match.id === staleId);
-  if (exact) return exact;
-
-  if (staleId.startsWith('openfootball:')) {
-    const parts = staleId.split(':');
-    // openfootball:<code>:<YYYY-MM-DD>:<home>:<away>
-    if (parts.length >= 5) {
-      const date = parts[2];
-      const homeTeamName = parts[3];
-      const awayTeamName = parts.slice(4).join(':');
-      const probe: Match = {
-        ...fresh[0],
-        homeTeamName,
-        awayTeamName,
-        kickoffUtc: /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T12:00:00.000Z` : null,
-        kickoffUnknown: true,
-      } as Match;
-      return fresh.find(match => sameFixture(probe, match)) ?? null;
-    }
-  }
-  return null;
-}
-
-export async function resolveTeamById(teamId: string): Promise<Team | null> {
-  const separatorIndex = teamId.indexOf(':');
-  if (separatorIndex === -1) return null;
-  const providerId = teamId.slice(0, separatorIndex) as ProviderId;
-  const providerTeamId = teamId.slice(separatorIndex + 1);
-  const provider = LIVE_PROVIDERS.find(item => item.id === providerId);
-  if (!provider?.isConfigured()) return null;
+export const LIVE_PROVIDERS = [{ id: 'server' as const, displayName: 'Football Scores · Open data', capabilities: { requiresApiKey: false }, isConfigured: () => true }];
+export interface ProviderHealth { providerId: ProviderId; lastSuccessAtUtc: string | null; lastFailureAtUtc: string | null; lastErrorMessage: string | null }
+const health: ProviderHealth = { providerId: 'server', lastSuccessAtUtc: null, lastFailureAtUtc: null, lastErrorMessage: null };
+export function getProviderHealth(): ProviderHealth[] { return [health]; }
+export interface SourcedResult<T> { data: T; providerId: ProviderId; isFromCache: boolean; isStale: boolean; errorMessage: string | null; coverage?: CoverageRow[]; importPending?: boolean }
+let lastRefresh = 0;
+export function canManualRefresh() { return Date.now() - lastRefresh > 20000; }
+export function markManualRefresh() { lastRefresh = Date.now(); }
+async function cached<T>(key: string, request: () => Promise<ApiEnvelope<T>>, empty: T, ttl = 300000, force = false): Promise<SourcedResult<T>> {
+  const cacheKey = `server:v1:${key}`;
+  const stored = await readCache<ApiEnvelope<T>>(cacheKey);
+  if (!force && stored && !stored.isStale && !stored.payload.meta.importPending) { track('cache_hit'); return { data: stored.payload.data, providerId: 'server', isFromCache: true, isStale: !!stored.payload.meta.isStale, errorMessage: stored.payload.meta.partial ? i18n.t('makeover.partialCoverage') : null, importPending: stored.payload.meta.importPending, coverage: stored.payload.meta.coverage }; }
   try {
-    return await provider.getTeam(providerTeamId);
+    track('cache_miss');
+    const result = await request();
+    health.lastSuccessAtUtc = new Date().toISOString(); health.lastErrorMessage = null;
+    await writeCache(cacheKey, 'server', result, ttl);
+    return { data: result.data, providerId: 'server', isFromCache: false, isStale: !!result.meta.isStale, errorMessage: result.meta.partial ? i18n.t('makeover.partialCoverage') : result.meta.reason || null, importPending: result.meta.importPending, coverage: result.meta.coverage };
   } catch {
-    return null;
+    health.lastFailureAtUtc = new Date().toISOString(); health.lastErrorMessage = 'server_unavailable';
+    return { data: stored?.payload.data ?? empty, providerId: 'cached', isFromCache: true, isStale: true, errorMessage: i18n.t('makeover.offline'), coverage: stored?.payload.meta.coverage };
   }
 }
-
-function providerIdPart(domainId: string): string {
-  const separator = domainId.indexOf(':');
-  return separator === -1 ? domainId : domainId.slice(separator + 1);
+export async function fetchMatches(query: MatchesQuery): Promise<SourcedResult<Match[]>> {
+  const keys = query.competitionProviderIds ?? [];
+  const suffix = keys.length === 1 ? `&competition=${encodeURIComponent(COMPETITION_BY_KEY.get(keys[0])?.canonicalId || keys[0])}` : '';
+  return cached(`fixtures:${query.dateFromUtc}:${query.dateToUtc}:${keys.join(',')}`, async () => {
+    let offset: number | null = 0; const matches: Match[] = []; let result: ApiEnvelope<Match[]>;
+    do {
+      result = await serverRequest<ApiEnvelope<Match[]>>(`/fixtures?from=${encodeURIComponent(query.dateFromUtc)}&to=${encodeURIComponent(query.dateToUtc)}&localFrom=${toLocalDateKey(query.dateFromUtc)}&localTo=${toLocalDateKey(query.dateToUtc)}${suffix}&limit=1000&offset=${offset}`);
+      matches.push(...result.data); offset = result.meta.nextOffset ?? null;
+    } while (offset !== null && offset < 20000);
+    const selected = new Set(keys.flatMap(k => [k, COMPETITION_BY_KEY.get(k)?.canonicalId || k]));
+    const data = keys.length > 1 ? matches.filter(m => selected.has(m.competitionId) || selected.has(m.catalogKey || '')) : matches;
+    for (const match of data) await writeCache(`server:match:${match.id}`, 'server', match, 86400000);
+    return { data, meta: result!.meta };
+  }, [], 120000, query.forceRefresh);
 }
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
+export const fetchCompetitions = () => cached<Competition[]>('competitions', () => serverRequest('/competitions'), [], 86400000);
+export const fetchStandings = (id: string, season?: string) => cached<StandingRow[]>(`standings:${id}:${season || ''}`, () => serverRequest(`/standings/${encodeURIComponent(id)}${season ? `?season=${season}` : ''}`), []);
+export const fetchTeams = (id: string) => cached<Team[]>(`teams:${id}`, () => serverRequest(`/teams?competition=${encodeURIComponent(id)}`), [], 86400000);
+export const fetchHeadToHead = (home: string, away: string) => cached<HeadToHeadResult>(`h2h:${home}:${away}`, () => serverRequest(`/insights?home=${encodeURIComponent(home)}&away=${encodeURIComponent(away)}`), { matches: [], totalMeetings: 0 });
+export const fetchForm = (id: string) => cached<FormResult>(`form:${id}`, () => serverRequest(`/insights?home=${encodeURIComponent(id)}`), { lastFive: [], homeForm: [], awayForm: [] });
+export async function resolveMatchById(id: string): Promise<Match | null> {
+  const result = await cached<Match | null>(`match:${id}`, () => serverRequest(`/fixtures/${encodeURIComponent(id)}`), null, 60000);
+  return result.data || (await readCache<Match>(`server:match:${id}`))?.payload || null;
 }
-
-function formStrength(form: FormResult): { strength: number; sample: number } {
-  const results = form.lastFive;
-  if (results.length === 0) return { strength: 0.5, sample: 0 };
-  const points = results.reduce((total, result) => total + (result === 'W' ? 3 : result === 'D' ? 1 : 0), 0);
-  return { strength: points / (results.length * 3), sample: results.length };
+export function reconcileMatchId(staleId: string, fresh: Match[]): Match | null {
+  const exact = fresh.find(m => m.id === staleId); if (exact) return exact;
+  if (staleId.startsWith('openfootball:')) { const p = staleId.split(':'); return fresh.find(m => m.fixtureDate === p[2] && m.homeTeamName === p[3] && m.awayTeamName === p.slice(4).join(':')) ?? null; }
+  return null;
 }
-
-function statisticalPrediction(
-  match: Match,
-  homeForm: FormResult,
-  awayForm: FormResult,
-  headToHead: HeadToHeadResult,
-): MatchPrediction | null {
-  const home = formStrength(homeForm);
-  const away = formStrength(awayForm);
-  const scoredMeetings = headToHead.matches.filter(item => item.fullTimeScore?.home != null && item.fullTimeScore.away != null);
-  const sampleSize = home.sample + away.sample + scoredMeetings.length;
-  if (sampleSize === 0) return null;
-
-  const h2hHomeAverage = scoredMeetings.length
-    ? scoredMeetings.reduce((total, item) => total + (item.fullTimeScore?.home ?? 0), 0) / scoredMeetings.length
-    : 1.35;
-  const h2hAwayAverage = scoredMeetings.length
-    ? scoredMeetings.reduce((total, item) => total + (item.fullTimeScore?.away ?? 0), 0) / scoredMeetings.length
-    : 1.1;
-  const strengthDifference = home.strength - away.strength;
-  const homeExpected = clamp(h2hHomeAverage + strengthDifference * 0.9 + 0.18, 0.2, 4.5);
-  const awayExpected = clamp(h2hAwayAverage - strengthDifference * 0.75, 0.2, 4.5);
-
-  const drawPercent = clamp(29 - Math.abs(strengthDifference) * 14, 17, 31);
-  const homeWinRaw = clamp(49 + strengthDifference * 42, 19, 75);
-  const awayWinRaw = clamp(100 - drawPercent - homeWinRaw, 12, 68);
-  const scale = (100 - drawPercent) / (homeWinRaw + awayWinRaw);
-  const homeWinPercent = Math.round(homeWinRaw * scale);
-  const awayWinPercent = 100 - Math.round(drawPercent) - homeWinPercent;
-
-  return {
-    matchId: match.id,
-    predictedHomeGoals: Math.round(homeExpected),
-    predictedAwayGoals: Math.round(awayExpected),
-    homeWinPercent,
-    drawPercent: Math.round(drawPercent),
-    awayWinPercent,
-    confidencePercent: Math.round(clamp(35 + sampleSize * 2.5, 35, 68)),
-    advice: null,
-    goalRange: homeExpected + awayExpected >= 2.7 ? 'Over 2.5' : 'Under 3.5',
-    source: 'statistical_model',
-    sampleSize,
-    generatedAtUtc: new Date().toISOString(),
-  };
-}
-
-export async function fetchMatchPrediction(match: Match): Promise<MatchPrediction | null> {
-  const cacheKey = cacheKeys.prediction(match.id);
-  const cached = await readCache<MatchPrediction>(cacheKey);
-  if (cached && !cached.isStale) return cached.payload;
-
-  const provider = LIVE_PROVIDERS.find(item => item.id === match.providerId);
-  if (!provider || !provider.isConfigured()) return cached?.payload ?? null;
-
-  if (provider.getPrediction) {
-    try {
-      const prediction = await provider.getPrediction(match.providerMatchId, match);
-      if (prediction) {
-        await writeCache(cacheKey, provider.id, prediction, CACHE_TTL_MS.prediction);
-        return prediction;
-      }
-    } catch { /* Try the cross-provider statistical fallback below. */ }
-  }
-
-  try {
-    const [homeForm, awayForm, headToHead] = await Promise.all([
-      provider.getForm(providerIdPart(match.homeTeamId)),
-      provider.getForm(providerIdPart(match.awayTeamId)),
-      provider.getHeadToHead(providerIdPart(match.homeTeamId), providerIdPart(match.awayTeamId)),
-    ]);
-    const prediction = statisticalPrediction(match, homeForm, awayForm, headToHead);
-    if (prediction) {
-      await writeCache(cacheKey, provider.id, prediction, CACHE_TTL_MS.prediction);
-      return prediction;
-    }
-  } catch { /* Try ESPN's keyless recent-form feed next. */ }
-
-  if (provider.id !== 'espn' && espnProvider.getPrediction) {
-    try {
-      const prediction = await espnProvider.getPrediction('', match);
-      if (prediction) {
-        await writeCache(cacheKey, espnProvider.id, prediction, CACHE_TTL_MS.prediction);
-        recordSuccess(espnProvider.id);
-        return prediction;
-      }
-    } catch (error) {
-      recordFailure(espnProvider.id, error instanceof Error ? error.message : 'Prediction unavailable');
-    }
-  }
-  return cached?.payload ?? null;
-}
-
-function minimalFinishedAnalysis(match: Match): MatchAnalysis | null {
-  if (match.status !== 'finished') return null;
-  const score = match.fullTimeScore ?? match.currentScore;
-  const summary: string[] = [];
-  if (score?.home != null && score.away != null) {
-    if (score.home === score.away) summary.push(`${match.homeTeamName} and ${match.awayTeamName} drew ${score.home}-${score.away}.`);
-    else summary.push(`${score.home > score.away ? match.homeTeamName : match.awayTeamName} won ${score.home}-${score.away}.`);
-  }
-  return {
-    matchId: match.id,
-    providerId: match.providerId,
-    events: [],
-    statistics: [],
-    lineups: [],
-    topPerformers: [],
-    summary,
-    hasExtendedData: false,
-    generatedAtUtc: new Date().toISOString(),
-  };
-}
-
-export async function fetchMatchAnalysis(match: Match): Promise<MatchAnalysis | null> {
-  const cacheKey = cacheKeys.analysis(match.id);
-  const cached = await readCache<MatchAnalysis>(cacheKey);
-  if (cached && !cached.isStale) return cached.payload;
-  const sourceProvider = LIVE_PROVIDERS.find(item => item.id === match.providerId);
-  const providers = [sourceProvider, espnProvider]
-    .filter((provider, index, list): provider is FootballDataProvider => !!provider && list.indexOf(provider) === index)
-    .filter(provider => provider.isConfigured() && !!provider.getMatchAnalysis);
-  for (const provider of providers) {
-    try {
-      const analysis = await provider.getMatchAnalysis?.(provider.id === match.providerId ? match.providerMatchId : '', match);
-      if (analysis) {
-        const ttl = match.status === 'live' || match.status === 'half_time'
-          ? CACHE_TTL_MS.liveMatchAnalysis
-          : match.status === 'scheduled'
-            ? CACHE_TTL_MS.preMatchAnalysis
-            : CACHE_TTL_MS.matchAnalysis;
-        await writeCache(cacheKey, provider.id, analysis, ttl);
-        recordSuccess(provider.id);
-        return analysis;
-      }
-    } catch (error) {
-      recordFailure(provider.id, error instanceof Error ? error.message : 'Analysis unavailable');
-    }
-  }
-  return cached?.payload ?? minimalFinishedAnalysis(match);
-}
+export const resolveTeamById = async (id: string) => (await cached<Team | null>(`team:${id}`, () => serverRequest(`/teams/${encodeURIComponent(id)}`), null, 86400000)).data;
+export async function fetchMatchPrediction(_match: Match): Promise<MatchPrediction | null> { return null; }
+export async function fetchMatchAnalysis(_match: Match): Promise<MatchAnalysis | null> { return null; }

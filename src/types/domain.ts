@@ -6,6 +6,8 @@
  */
 
 export type ProviderId =
+  | 'server'
+  | 'manual'
   | 'openfootball'
   | 'thesportsdb'
   | 'espn'
@@ -86,6 +88,11 @@ export interface MatchScore {
 }
 
 export interface Match {
+  analytics?: {outcome:string;comebackWin:boolean|null;maxDeficitOvercome:number|null;timelineComplete:boolean;totalGoals:number|null;bothTeamsScored:boolean|null};
+  goalEvents?: {id?:string;minute?:number|null;home:number;away:number;scorer?:string|null;penalty?:boolean|null;ownGoal?:boolean|null}[];
+  sourceUrl?:string;
+
+  fixtureDate?: string;
   id: string;
   providerId: ProviderId;
   providerMatchId: string;
@@ -302,6 +309,8 @@ export type LanguagePreference = 'en' | 'ar';
 export type DefaultTab = 'home' | 'matches' | 'players' | 'more';
 
 export interface UserPreferences {
+  dataDisclosureVersion?: number;
+  favoriteTeamReminders?: boolean;
   onboardingCompleted: boolean;
   language: LanguagePreference;
   theme: ThemePreference;
@@ -322,6 +331,7 @@ export interface ProviderCacheEntry<T = unknown> {
 }
 
 export interface AdFrequencyState {
+  lastInterstitialPlacement?: string;
   lastInterstitialAt: string | null;
   firstSessionStartedAt: string | null;
   activeSessionStartedAt: string | null;
@@ -392,6 +402,7 @@ export interface BackupMetadata {
 }
 
 export interface CompleteBackup {
+  reminderRules?: {match_id:string;origin:'manual'|'favorite';disabled:number}[];
   metadata: BackupMetadata;
   favorites: Favorite[];
   watchPlanItems: WatchPlanItem[];
@@ -418,6 +429,9 @@ export interface NewsEntities {
  * itself is built.
  */
 export interface NewsArticle {
+  isHot?: boolean;
+  license?: string;
+  licenseUrl?: string;
   id: string;
   title: string;
   snippet: string;

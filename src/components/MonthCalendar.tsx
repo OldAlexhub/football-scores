@@ -57,13 +57,13 @@ export function MonthCalendar({ value, rangeStart, rangeEnd, mode, onSelect, min
   return (
     <View>
       <View style={[styles.header, { flexDirection: I18nManager.isRTL ? 'row-reverse' : 'row' }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Previous month" hitSlop={10} onPress={() => shiftMonth(-1)} style={styles.navBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel={locale.startsWith('ar')?'الشهر السابق':'Previous month'} hitSlop={10} onPress={() => shiftMonth(-1)} style={styles.navBtn}>
           <View style={{ transform: [{ rotate: I18nManager.isRTL ? '0deg' : '180deg' }] }}>
             <AppIcon name="chevronRight" size={20} color={theme.colors.textSecondary} />
           </View>
         </Pressable>
         <Text style={[styles.monthLabel, { color: theme.colors.textPrimary }]}>{monthLabel}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Next month" hitSlop={10} onPress={() => shiftMonth(1)} style={styles.navBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel={locale.startsWith('ar')?'الشهر التالي':'Next month'} hitSlop={10} onPress={() => shiftMonth(1)} style={styles.navBtn}>
           <View style={{ transform: [{ rotate: I18nManager.isRTL ? '180deg' : '0deg' }] }}>
             <AppIcon name="chevronRight" size={20} color={theme.colors.textSecondary} />
           </View>
@@ -92,6 +92,7 @@ export function MonthCalendar({ value, rangeStart, rangeEnd, mode, onSelect, min
                 key={index}
                 disabled={disabled}
                 onPress={() => onSelect(startOfLocalDay(cell))}
+                accessibilityLabel={cell.toLocaleDateString(locale,{year:'numeric',month:'long',day:'numeric'})}
                 accessibilityRole="button"
                 accessibilityState={{ selected: highlighted, disabled }}
                 style={[

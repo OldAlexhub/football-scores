@@ -56,8 +56,8 @@ export function PredictionEditorScreen() {
     }
     const finalize = async () => {
       await save(params.match as NonNullable<typeof params.match>, { outcome, homeScore: h, awayScore: a, confidence, note });
-      await maybeShowInterstitial('prediction_save_milestone');
       navigation.goBack();
+      void maybeShowInterstitial('prediction_save_milestone');
     };
     if (existing) {
       Alert.alert(t('predict.duplicateWarning'), '', [

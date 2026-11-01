@@ -1,3 +1,5 @@
+import { trackAd } from '../services/telemetry';
+import { isNotificationEntry } from './notificationEntry';
 import { AdEventType, AppOpenAd } from 'react-native-google-mobile-ads';
 import { APP_OPEN_ADS_ENABLED, APP_OPEN_AD_UNIT_ID, FREQUENCY_CAPS } from '../config/adsConfig';
 import { getAdFrequencyState, updateAdFrequencyState } from '../storage/adStateRepo';
@@ -16,15 +18,19 @@ export function preloadAppOpen(): void {
   if (ad && Date.now() - loadedAt < MAX_AD_AGE_MS) return;
   ad = AppOpenAd.createForAdRequest(APP_OPEN_AD_UNIT_ID, { requestNonPersonalizedAdsOnly: false });
   loading = true;
+  ad.addAdEventListener(AdEventType.PAID, value => trackAd('ad_paid','app_open','app_open',value));
   ad.addAdEventListener(AdEventType.LOADED, () => {
+    trackAd('ad_loaded','app_open','app_open');
     loading = false;
     loadedAt = Date.now();
   });
   ad.addAdEventListener(AdEventType.ERROR, () => {
+    trackAd('ad_failed','app_open','app_open');
     loading = false;
     ad = null;
   });
   ad.addAdEventListener(AdEventType.OPENED, () => {
+    trackAd('ad_impression','app_open','app_open');
     showing = true;
     updateAdFrequencyState({ lastAppOpenAdAt: new Date().toISOString() });
   });
@@ -34,10 +40,12 @@ export function preloadAppOpen(): void {
     loadedAt = 0;
     preloadAppOpen();
   });
+  trackAd('ad_request','app_open','app_open');
   ad.load();
 }
 
 export async function maybeShowAppOpen(): Promise<void> {
+  if(isNotificationEntry()) return;
   if (!APP_OPEN_ADS_ENABLED || !ad || loading || showing || Date.now() - loadedAt >= MAX_AD_AGE_MS) {
     preloadAppOpen();
     return;
